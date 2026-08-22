@@ -89,6 +89,12 @@ export const BookingSchema = z.object({
     .max(8, "Maximum 8 passengers per booking")
     .default(1),
 
+  // Add-ons (optional extras: baby seat, trailer, WiFi, etc.)
+  addonIds: z
+    .array(z.string().uuid("Invalid addon ID"))
+    .optional()
+    .default([]),
+
   // Optional: Notes or special requests
   specialRequests: z
     .string()
