@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { BookingSchema, type BookingFormData } from "@/lib/schemas/booking";
 import { ZodError } from "zod";
+import Turnstile from "react-turnstile";
 
 interface BookingFormProps {
   onSubmit?: (data: BookingFormData) => void;
@@ -10,6 +11,8 @@ interface BookingFormProps {
 }
 
 export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
+  const turnstileRef = useRef<any>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({
     guestFirstName: "",
     guestSurname: "",
@@ -110,12 +113,21 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
       return;
     }
 
+    // Verify Turnstile token
+    if (!turnstileToken) {
+      setErrors({ submit: "Please complete the bot verification" });
+      return;
+    }
+
     // Form is valid, submit to server
     try {
       const response = await fetch("/api/bookings/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result.data),
+        body: JSON.stringify({
+          ...result.data,
+          turnstileToken,
+        }),
       });
 
       if (!response.ok) {
@@ -400,6 +412,23 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
           )}
         </div>
       </fieldset>
+
+      {/* Turnstile Bot Protection */}
+      <div className="flex justify-center py-4">
+        <Turnstile
+          ref={turnstileRef}
+          sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""}
+          onSuccess={(token) => setTurnstileToken(token)}
+          onError={() => {
+            setTurnstileToken("");
+            setErrors((prev) => ({ ...prev, turnstile: "Bot verification failed" }));
+          }}
+          theme="light"
+        />
+      </div>
+      {errors.turnstile && (
+        <p className="text-sm text-red-500 text-center">{errors.turnstile}</p>
+      )}
 
       {/* Submit Error */}
       {errors.submit && (

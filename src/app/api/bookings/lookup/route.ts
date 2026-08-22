@@ -7,6 +7,7 @@ import {
   checkRateLimit,
   getClientIp,
 } from "@/lib/rate-limit";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 /**
  * POST /api/bookings/lookup
@@ -70,7 +71,31 @@ export async function POST(request: NextRequest) {
     // ============================================================================
     const body = await request.json();
 
-    const validationResult = GuestBookingLookupSchema.safeParse(body);
+    // ============================================================================
+    // BOT PROTECTION: Verify Turnstile Token
+    // ============================================================================
+    const turnstileToken = body.turnstileToken;
+    const turnstileVerification = await verifyTurnstileToken(
+      turnstileToken,
+      clientIp
+    );
+
+    if (!turnstileVerification.success) {
+      return NextResponse.json(
+        {
+          error: "Bot verification failed",
+          message: turnstileVerification.error,
+        },
+        {
+          status: 403,
+          headers: rateLimitResult.headers,
+        }
+      );
+    }
+
+    // Remove turnstileToken from body before validation
+    const { turnstileToken: _, ...bodyWithoutToken } = body;
+    const validationResult = GuestBookingLookupSchema.safeParse(bodyWithoutToken);
 
     if (!validationResult.success) {
       const errors: Record<string, string> = {};
