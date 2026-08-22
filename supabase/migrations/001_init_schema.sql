@@ -155,9 +155,6 @@ CREATE POLICY "Users can read own bookings" ON bookings
 CREATE POLICY "Guests can read booking by verification code" ON bookings
   FOR SELECT USING (
     (SELECT auth.uid()) IS NULL
-  )
-  WITH CHECK (
-    (SELECT auth.uid()) IS NULL
   );
 
 -- ============================================================================
