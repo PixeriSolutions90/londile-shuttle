@@ -3,6 +3,11 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { BookingSchema } from "@/lib/schemas/booking";
 import { nanoid } from "nanoid";
+import {
+  bookingRateLimit,
+  checkRateLimit,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 /**
  * POST /api/bookings/create
@@ -12,8 +17,34 @@ import { nanoid } from "nanoid";
  * - Generates booking number
  * - Saves to Supabase
  * - Returns booking confirmation
+ * - Rate limited: 10 requests per hour per IP
  */
 export async function POST(request: NextRequest) {
+  // ============================================================================
+  // RATE LIMITING: 10 requests per hour per IP
+  // ============================================================================
+  const clientIp = getClientIp(request);
+  const rateLimitResult = await checkRateLimit(
+    bookingRateLimit(clientIp),
+    "booking-create"
+  );
+
+  if (!rateLimitResult.allowed) {
+    // Rate limit exceeded
+    return NextResponse.json(
+      {
+        error: "Too many booking requests",
+        message:
+          "You have made too many booking requests in the last hour. Please try again later.",
+        retryAfter: rateLimitResult.headers?.["Retry-After"],
+      },
+      {
+        status: 429, // Too Many Requests
+        headers: rateLimitResult.headers,
+      }
+    );
+  }
+
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -55,7 +86,10 @@ export async function POST(request: NextRequest) {
           error: "Validation failed",
           details: errors,
         },
-        { status: 400 }
+        {
+          status: 400,
+          headers: rateLimitResult.headers,
+        }
       );
     }
 
@@ -98,7 +132,10 @@ export async function POST(request: NextRequest) {
           error: "Failed to create booking",
           details: insertError.message,
         },
-        { status: 500 }
+        {
+          status: 500,
+          headers: rateLimitResult.headers,
+        }
       );
     }
 
@@ -165,7 +202,10 @@ export async function POST(request: NextRequest) {
           verificationCode: booking.verification_code,
         },
       },
-      { status: 201 }
+      {
+        status: 201,
+        headers: rateLimitResult.headers,
+      }
     );
   } catch (error) {
     console.error("API error:", error);
@@ -176,7 +216,10 @@ export async function POST(request: NextRequest) {
         {
           error: "Invalid JSON in request body",
         },
-        { status: 400 }
+        {
+          status: 400,
+          headers: rateLimitResult.headers,
+        }
       );
     }
 
@@ -185,7 +228,10 @@ export async function POST(request: NextRequest) {
       {
         error: "Internal server error",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: rateLimitResult.headers,
+      }
     );
   }
 }
