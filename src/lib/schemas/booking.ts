@@ -42,18 +42,52 @@ export const BookingSchema = z.object({
     .max(200, "Address must be less than 200 characters")
     .trim(),
 
-  // Trip Details (Operational)
+  // Outbound Trip (Operational)
   tripStartDate: z
     .string()
     .datetime("Invalid date format")
     .transform((val) => new Date(val))
-    .refine((date) => date > new Date(), "Trip start date must be in the future"),
+    .refine((date) => date > new Date(), "Pickup date must be in the future"),
+
+  tripStartTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
 
   tripEndDate: z
     .string()
     .datetime("Invalid date format")
     .transform((val) => new Date(val))
-    .refine((date) => date > new Date(), "Trip end date must be in the future"),
+    .refine((date) => date > new Date(), "Dropoff date must be in the future"),
+
+  tripEndTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format"),
+
+  // Return Trip (Optional)
+  isReturnTrip: z
+    .boolean()
+    .default(false),
+
+  returnDate: z
+    .string()
+    .datetime("Invalid date format")
+    .transform((val) => new Date(val))
+    .optional()
+    .nullable(),
+
+  returnTime: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
+    .optional()
+    .nullable(),
+
+  // Passenger Count
+  passengerCount: z
+    .number()
+    .int()
+    .min(1, "At least 1 passenger required")
+    .max(8, "Maximum 8 passengers per booking")
+    .default(1),
 
   // Optional: Notes or special requests
   specialRequests: z
@@ -72,11 +106,11 @@ export const BookingSchema = z.object({
     .boolean()
     .refine((val) => val === true, "You must agree to the Privacy Policy"),
 })
-  // Custom validation: end date must be after start date
+  // Custom validation: dropoff date must be on or after pickup date
   .refine(
-    (data) => data.tripEndDate > data.tripStartDate,
+    (data) => data.tripEndDate >= data.tripStartDate,
     {
-      message: "Trip end date must be after start date",
+      message: "Dropoff date must be on or after pickup date",
       path: ["tripEndDate"],
     }
   )
@@ -92,6 +126,29 @@ export const BookingSchema = z.object({
     {
       message: "Trip duration cannot exceed 30 days",
       path: ["tripEndDate"],
+    }
+  )
+  // Custom validation: return date must be after dropoff if return trip
+  .refine(
+    (data) => {
+      if (!data.isReturnTrip) return true;
+      if (!data.returnDate) return false;
+      return data.returnDate >= data.tripEndDate;
+    },
+    {
+      message: "Return date must be on or after dropoff date",
+      path: ["returnDate"],
+    }
+  )
+  // Custom validation: return time required if return trip
+  .refine(
+    (data) => {
+      if (!data.isReturnTrip) return true;
+      return data.returnTime !== null && data.returnTime !== undefined;
+    },
+    {
+      message: "Return time is required for return trips",
+      path: ["returnTime"],
     }
   );
 
