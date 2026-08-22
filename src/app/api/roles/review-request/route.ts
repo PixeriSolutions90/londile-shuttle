@@ -35,6 +35,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ============================================================================
+  // AUTHORIZATION: Explicit role check (defense-in-depth over RLS)
+  // ============================================================================
+  const userRole = request.headers.get("x-user-role");
+  if (userRole !== "admin") {
+    console.warn(`Unauthorized agent review attempt by user role: ${userRole}`);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   // Now use service role key to review the request
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

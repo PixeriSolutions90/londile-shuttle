@@ -134,8 +134,14 @@ export async function checkRateLimit(
     return { allowed: true, headers };
   } catch (error) {
     console.error(`Rate limit check failed for ${context}:`, error);
-    // If rate limiter fails, allow the request (fail open)
-    // Better to serve the request than to block everything
-    return { allowed: true };
+    // SECURITY: Fail closed - if rate limiter unavailable, reject requests
+    // Prevents DDoS if Upstash goes down
+    // Better to block requests than to lose rate limiting protection
+    return {
+      allowed: false,
+      headers: {
+        "Retry-After": "60",
+      },
+    };
   }
 }
