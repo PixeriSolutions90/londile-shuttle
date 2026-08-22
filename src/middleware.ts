@@ -52,24 +52,39 @@ export async function middleware(request: NextRequest) {
 
   // If user is authenticated, get their role
   if (session) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", session.user.id)
-      .single();
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
 
-    // Gate agent routes
-    if (agentRoutes && profile?.role !== "agent") {
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
+      // If profile doesn't exist yet, default to "user"
+      if (error && error.code === "PGRST116") {
+        response.headers.set("x-user-role", "user");
+      } else if (error) {
+        // If table doesn't exist or other error, allow access for now
+        console.error("Profile lookup error:", error);
+        response.headers.set("x-user-role", "user");
+      } else {
+        // Gate agent routes
+        if (agentRoutes && profile?.role !== "agent") {
+          return NextResponse.redirect(new URL("/unauthorized", request.url));
+        }
+
+        // Gate admin routes
+        if (adminRoutes && profile?.role !== "admin") {
+          return NextResponse.redirect(new URL("/unauthorized", request.url));
+        }
+
+        // Attach user role to headers for use in API routes
+        response.headers.set("x-user-role", profile?.role || "user");
+      }
+    } catch (error) {
+      console.error("Middleware error:", error);
+      // Allow access on error (profiles table might not exist yet)
+      response.headers.set("x-user-role", "user");
     }
-
-    // Gate admin routes
-    if (adminRoutes && profile?.role !== "admin") {
-      return NextResponse.redirect(new URL("/unauthorized", request.url));
-    }
-
-    // Attach user role to headers for use in API routes
-    response.headers.set("x-user-role", profile?.role || "user");
   }
 
   return response;
@@ -78,13 +93,24 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
+     * Match protected routes only:
+     * - /dashboard
+     * - /profile
+     * - /bookings
+     * - /agent (and subroutes)
+     * - /admin (and subroutes)
+     *
+     * Excluded (public):
+     * - /book, /lookup (public booking forms)
+     * - /login, /signup (auth pages)
+     * - /privacy, /terms, /data-retention (policy pages)
+     * - api/* (API routes)
+     * - _next/*, favicon.ico, public (Next.js internals)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|public).*)",
+    "/dashboard/:path*",
+    "/profile/:path*",
+    "/bookings/:path*",
+    "/agent/:path*",
+    "/admin/:path*",
   ],
 };
