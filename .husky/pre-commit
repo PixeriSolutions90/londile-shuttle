@@ -1,0 +1,46 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Pre-commit hook to prevent secrets from being committed
+
+echo "🔍 Scanning for secrets..."
+
+# Check for common secret patterns
+if git diff --cached --name-only | grep -E "\.env\..*local|\.pem|\.key|\.p12"; then
+  echo "❌ ERROR: Attempting to commit secret files!"
+  echo ""
+  echo "These files must stay local and should NOT be committed:"
+  echo "  • .env.local"
+  echo "  • .env.*.local"
+  echo "  • *.pem (SSL certificates)"
+  echo "  • *.key (Private keys)"
+  echo "  • *.p12 (PKCS12 certificates)"
+  echo ""
+  echo "Confirm they are in .gitignore and try again."
+  exit 1
+fi
+
+# Check for hardcoded secrets in code
+if git diff --cached -p | grep -iE "(password|secret|api.?key|token|bearer|authorization)[\s]*[=:]\s*['\"]?[a-zA-Z0-9_\-]{20,}['\"]?" | grep -v "// " | grep -v "# "; then
+  echo "⚠️  WARNING: Possible hardcoded secret detected!"
+  echo ""
+  echo "This looks like a secret in your code:"
+  git diff --cached -p | grep -iE "(password|secret|api.?key|token|bearer|authorization)[\s]*[=:]\s*['\"]?[a-zA-Z0-9_\-]{20,}['\"]?"
+  echo ""
+  echo "Secrets should be in environment variables, not in code."
+  echo "If this is a false positive, add '// allow' to the line."
+  # Note: This is a warning, not a hard block
+  # Remove the next line to make it a hard blocker
+  # exit 1
+fi
+
+# Check for API keys in comments
+if git diff --cached -p | grep -iE "key.*=|secret.*=|password.*=" | grep -iE "[a-zA-Z0-9+/]{40,}|[a-zA-Z0-9_\-]{32,}"; then
+  echo "⚠️  WARNING: Possible secret in comments!"
+  echo ""
+  echo "Review: Are there any actual secrets in code/comments?"
+  # Warning only, not blocking
+fi
+
+echo "✅ Secret scan passed!"
+exit 0
