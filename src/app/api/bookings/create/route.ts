@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: "Failed to create booking",
-          details: insertError.message,
+          message: "An error occurred while processing your booking. Please try again.",
         },
         {
           status: 500,
@@ -208,27 +208,18 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================================
-    // RETURN SUCCESS RESPONSE
+    // RETURN SUCCESS RESPONSE (No sensitive data exposed to client)
     // ============================================================================
+    // NOTE: Verification code is only sent via SMS/Email, never in API response
     return NextResponse.json(
       {
         success: true,
         message: "Booking confirmed!",
-        booking: {
-          id: booking.id,
-          bookingNumber: booking.booking_number,
-          verificationCode: booking.verification_code,
-          guestName: booking.guest_name,
-          status: booking.status,
-          tripStartDate: booking.trip_start_date,
-          tripEndDate: booking.trip_end_date,
-        },
-        // Include confirmation details for display
+        bookingNumber: booking.booking_number,
+        // Confirmation details for display (no internal IDs or verification codes)
         confirmation: {
           title: `Booking Confirmed - ${bookingNumber}`,
-          message: `Your shuttle booking has been confirmed. Your booking number is ${bookingNumber}. Please keep this number safe for reference.`,
-          contactNumber: data.contactNumber,
-          verificationCode: booking.verification_code,
+          message: `Your shuttle booking has been confirmed. Your booking number is ${bookingNumber}. Please keep this number safe for reference. A confirmation has been sent to your contact number.`,
         },
       },
       {

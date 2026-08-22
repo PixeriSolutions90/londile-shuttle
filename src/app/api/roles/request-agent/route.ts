@@ -62,16 +62,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
+      console.error("Agent request error:", error);
       return NextResponse.json(
-        { error: error.message },
+        { error: "Failed to submit agent request" },
         { status: 400 }
       );
     }
 
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
+    console.error("API error:", error);
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: "An error occurred" },
       { status: 500 }
     );
   }
