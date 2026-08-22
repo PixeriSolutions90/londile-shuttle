@@ -11,7 +11,6 @@ interface BookingFormProps {
 }
 
 export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
-  const turnstileRef = useRef<any>(null);
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [formData, setFormData] = useState<Record<string, any>>({
     guestFirstName: "",
@@ -416,8 +415,8 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
       {/* Turnstile Bot Protection */}
       <div className="flex justify-center py-4">
         <Turnstile
-          ref={turnstileRef}
           sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""}
+          action="booking"
           onSuccess={(token) => setTurnstileToken(token)}
           onError={() => {
             setTurnstileToken("");

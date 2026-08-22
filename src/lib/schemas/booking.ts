@@ -99,15 +99,6 @@ export const BookingSchema = z.object({
 export type BookingFormData = z.infer<typeof BookingSchema>;
 
 /**
- * Agent Booking Schema
- * For agents creating bookings for clients
- * Same as above but no email field (agent uses their own)
- */
-export const AgentBookingSchema = BookingSchema.omit({ email: true });
-
-export type AgentBookingFormData = z.infer<typeof AgentBookingSchema>;
-
-/**
  * Guest Booking Lookup Schema
  * For guests to find their booking without authentication
  */

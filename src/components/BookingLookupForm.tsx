@@ -5,7 +5,6 @@ import { GuestBookingLookupSchema } from "@/lib/schemas/booking";
 import Turnstile from "react-turnstile";
 
 export function BookingLookupForm() {
-  const turnstileRef = useRef<any>(null);
   const [formData, setFormData] = useState({
     bookingNumber: "",
     contactNumber: "",
@@ -73,7 +72,6 @@ export function BookingLookupForm() {
       // Reset form
       setFormData({ bookingNumber: "", contactNumber: "" });
       setTurnstileToken("");
-      turnstileRef.current?.reset();
     } catch (error) {
       setErrors({ submit: "Network error. Please try again." });
     } finally {
@@ -136,8 +134,8 @@ export function BookingLookupForm() {
           {/* Turnstile Bot Protection */}
           <div className="flex justify-center py-4">
             <Turnstile
-              ref={turnstileRef}
               sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ""}
+              action="lookup"
               onSuccess={(token) => setTurnstileToken(token)}
               onError={() => {
                 setTurnstileToken("");

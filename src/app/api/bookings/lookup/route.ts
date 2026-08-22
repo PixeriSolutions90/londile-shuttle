@@ -72,12 +72,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // ============================================================================
-    // BOT PROTECTION: Verify Turnstile Token
+    // BOT PROTECTION: Verify Turnstile Token (Canonical Siteverify)
     // ============================================================================
     const turnstileToken = body.turnstileToken;
     const turnstileVerification = await verifyTurnstileToken(
       turnstileToken,
-      clientIp
+      clientIp,
+      "lookup"
     );
 
     if (!turnstileVerification.success) {
