@@ -258,7 +258,8 @@ export async function POST(request: NextRequest) {
 
 /**
  * Generate next sequential booking number
- * Uses Supabase sequence to ensure uniqueness
+ * Primary: Supabase sequence (LS-00001, LS-00002, etc.)
+ * Fallback: nanoid for collision-safe uniqueness if sequence unavailable
  */
 async function generateBookingNumber(supabase: any): Promise<string> {
   try {
@@ -267,15 +268,15 @@ async function generateBookingNumber(supabase: any): Promise<string> {
 
     if (error) {
       console.error("Booking number generation error:", error);
-      // Fallback: Generate manually (less ideal but works)
-      return `LS-${Math.random().toString().slice(2, 7).padStart(5, "0")}`;
+      // Fallback: Use nanoid for collision-safe randomness (not Math.random)
+      return `LS-${nanoid(5).toUpperCase()}`;
     }
 
     return data;
   } catch (err) {
     console.error("Error generating booking number:", err);
-    // Fallback
-    return `LS-${Math.random().toString().slice(2, 7).padStart(5, "0")}`;
+    // Fallback: Use nanoid for collision-safe randomness
+    return `LS-${nanoid(5).toUpperCase()}`;
   }
 }
 
