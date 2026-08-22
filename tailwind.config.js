@@ -9,9 +9,9 @@ export default {
     extend: {
       colors: {
         brand: {
-          primary: '#3B82F6',
-          secondary: '#8B5CF6',
-          accent: '#EC4899',
+          primary: '#003b70',
+          secondary: '#0068da',
+          accent: '#fcc614',
           success: '#10B981',
           warning: '#F59E0B',
           error: '#EF4444',
