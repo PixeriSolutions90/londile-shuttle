@@ -10,7 +10,7 @@ interface BookingFormProps {
 }
 
 export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
-  const [formData, setFormData] = useState<Partial<BookingFormData>>({
+  const [formData, setFormData] = useState<Record<string, any>>({
     guestFirstName: "",
     guestSurname: "",
     contactNumber: "",
@@ -43,7 +43,7 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
       return true;
     } catch (error) {
       if (error instanceof ZodError) {
-        const message = error.errors[0]?.message || "Invalid input";
+        const message = (error.issues as any[])[0]?.message || "Invalid input";
         setErrors((prev) => ({ ...prev, [name]: message }));
       }
       return false;
@@ -102,7 +102,7 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
     if (!result.success) {
       // Display all errors
       const newErrors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
+      result.error.issues.forEach((err: any) => {
         const path = err.path.join(".");
         newErrors[path] = err.message;
       });
@@ -285,7 +285,7 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
               type="datetime-local"
               id="tripStartDate"
               name="tripStartDate"
-              value={formData.tripStartDate || ""}
+              value={String(formData.tripStartDate || "")}
               onChange={handleChange}
               onBlur={handleBlur}
               className={`mt-1 w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
@@ -308,7 +308,7 @@ export function BookingForm({ onSubmit, isLoading = false }: BookingFormProps) {
               type="datetime-local"
               id="tripEndDate"
               name="tripEndDate"
-              value={formData.tripEndDate || ""}
+              value={String(formData.tripEndDate || "")}
               onChange={handleChange}
               onBlur={handleBlur}
               className={`mt-1 w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
