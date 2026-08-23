@@ -26,6 +26,10 @@ export default function HomeBookingWidget() {
     date: '',
     time: '',
     isReturn: false,
+    returnPickup: '',
+    returnDropoff: '',
+    returnDate: '',
+    returnTime: '',
     passengers: '',
     babySeat: false,
     trailer: false,
@@ -141,6 +145,57 @@ export default function HomeBookingWidget() {
                 />
               </button>
             </div>
+
+            {/* Return Trip Details (expands when toggle is on) */}
+            {form.isReturn && (
+              <div className="space-y-3 pl-3 border-l-2" style={{ borderColor: '#0068da' }}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Return Trip Details
+                </p>
+
+                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                  <IconMapPinFrom className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Return pickup address"
+                    value={form.returnPickup}
+                    onChange={(e) => update('returnPickup', e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+                  />
+                </div>
+                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                  <IconMapPinTo className="w-4 h-4 text-gray-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Return dropoff address"
+                    value={form.returnDropoff}
+                    onChange={(e) => update('returnDropoff', e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                    <IconCalendar className="w-4 h-4 text-gray-400 shrink-0" />
+                    <input
+                      type="date"
+                      value={form.returnDate}
+                      onChange={(e) => update('returnDate', e.target.value)}
+                      className="w-full bg-transparent text-sm outline-none text-gray-700"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                    <IconClock className="w-4 h-4 text-gray-400 shrink-0" />
+                    <input
+                      type="time"
+                      value={form.returnTime}
+                      onChange={(e) => update('returnTime', e.target.value)}
+                      className="w-full bg-transparent text-sm outline-none text-gray-700"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Passengers */}
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
