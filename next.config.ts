@@ -23,16 +23,16 @@ const nextConfig: NextConfig = {
             value: [
               // Default: restrict to same origin
               "default-src 'self'",
-              // Scripts: allow self and inline for Next.js
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
+              // Scripts: allow self, inline for Next.js, Cloudflare Turnstile, and Google Maps
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://maps.googleapis.com https://maps.gstatic.com",
               // Styles: allow self and inline
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               // Images: allow self, data URIs, and common CDNs
               "img-src 'self' data: https:",
-              // Fonts: allow self and Google Fonts
-              "font-src 'self' data: https://fonts.gstatic.com",
-              // Connect: allow API calls and Cloudflare
-              "connect-src 'self' https://upstash.io https://challenges.cloudflare.com https://vercel.live",
+              // Fonts: allow self, Google Fonts, and Google Maps
+              "font-src 'self' data: https://fonts.gstatic.com https://maps.gstatic.com",
+              // Connect: allow API calls, Cloudflare, and Google Maps Places Autocomplete
+              "connect-src 'self' https://upstash.io https://challenges.cloudflare.com https://vercel.live https://maps.googleapis.com",
               // Frames: allow Cloudflare Turnstile
               "frame-src 'self' https://challenges.cloudflare.com",
               // Media: allow self
@@ -114,8 +114,11 @@ const nextConfig: NextConfig = {
             value: "none",
           },
           {
+            // "credentialless" instead of "require-corp": still isolates the page,
+            // but doesn't require third parties (e.g. Google Maps) to send a
+            // Cross-Origin-Resource-Policy header we don't control.
             key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
+            value: "credentialless",
           },
           {
             key: "Cross-Origin-Opener-Policy",
