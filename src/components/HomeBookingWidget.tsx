@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookingLookupForm } from './BookingLookupForm';
 import {
@@ -12,6 +12,9 @@ import {
   IconGlobe,
   IconSearch,
   IconCar,
+  IconChevronDown,
+  IconMinus,
+  IconPlus,
 } from './icons';
 
 type Tab = 'local' | 'international' | 'modify';
@@ -30,14 +33,45 @@ export default function HomeBookingWidget() {
     returnDropoff: '',
     returnDate: '',
     returnTime: '',
-    passengers: '',
+    adults: 1,
+    children: 0,
+    infants: 0,
     babySeat: false,
     trailer: false,
     instructions: '',
   });
 
-  const update = (field: string, value: string | boolean) =>
+  const update = (field: string, value: string | boolean | number) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const adjustCount = (field: 'adults' | 'children' | 'infants', delta: number) => {
+    setForm((prev) => {
+      const min = field === 'adults' ? 1 : 0;
+      const next = Math.max(min, Math.min(8, prev[field] + delta));
+      return { ...prev, [field]: next };
+    });
+  };
+
+  const [passengersOpen, setPassengersOpen] = useState(false);
+  const passengersRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (passengersRef.current && !passengersRef.current.contains(e.target as Node)) {
+        setPassengersOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const passengerSummary = () => {
+    const parts: string[] = [];
+    if (form.adults > 0) parts.push(`${form.adults} Adult${form.adults > 1 ? 's' : ''}`);
+    if (form.children > 0) parts.push(`${form.children} Child${form.children > 1 ? 'ren' : ''}`);
+    if (form.infants > 0) parts.push(`${form.infants} Infant${form.infants > 1 ? 's' : ''}`);
+    return parts.length ? parts.join(', ') : 'No. of passengers';
+  };
 
   const handleQuote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,20 +232,112 @@ export default function HomeBookingWidget() {
             )}
 
             {/* Passengers */}
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-              <IconUsers className="w-4 h-4 text-gray-400 shrink-0" />
-              <select
-                value={form.passengers}
-                onChange={(e) => update('passengers', e.target.value)}
-                className="w-full bg-transparent text-sm outline-none text-gray-700"
+            <div className="relative" ref={passengersRef}>
+              <button
+                type="button"
+                onClick={() => setPassengersOpen((v) => !v)}
+                className="w-full flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-left"
               >
-                <option value="">No. of passengers</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                  <option key={n} value={n}>
-                    {n} passenger{n > 1 ? 's' : ''}
-                  </option>
-                ))}
-              </select>
+                <IconUsers className="w-4 h-4 text-gray-400 shrink-0" />
+                <span className={`flex-1 text-sm ${form.adults + form.children + form.infants > 0 ? 'text-gray-700' : 'text-gray-400'}`}>
+                  {passengerSummary()}
+                </span>
+                <IconChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${passengersOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {passengersOpen && (
+                <div className="absolute z-10 mt-2 w-full bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-4">
+                  {/* Adults */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Adults</p>
+                      <p className="text-xs text-gray-400">Age 13+</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('adults', -1)}
+                        disabled={form.adults <= 1}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconMinus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-4 text-center text-sm font-medium text-gray-800">{form.adults}</span>
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('adults', 1)}
+                        disabled={form.adults >= 8}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconPlus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Children */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Children</p>
+                      <p className="text-xs text-gray-400">Age 2-12</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('children', -1)}
+                        disabled={form.children <= 0}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconMinus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-4 text-center text-sm font-medium text-gray-800">{form.children}</span>
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('children', 1)}
+                        disabled={form.children >= 8}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconPlus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Infants */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Infants</p>
+                      <p className="text-xs text-gray-400">Under 2</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('infants', -1)}
+                        disabled={form.infants <= 0}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconMinus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-4 text-center text-sm font-medium text-gray-800">{form.infants}</span>
+                      <button
+                        type="button"
+                        onClick={() => adjustCount('infants', 1)}
+                        disabled={form.infants >= 8}
+                        className="w-7 h-7 flex items-center justify-center rounded-full border border-gray-300 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed hover:border-gray-400"
+                      >
+                        <IconPlus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPassengersOpen(false)}
+                    className="w-full py-2 rounded-lg text-sm font-medium text-white"
+                    style={{ backgroundColor: '#0068da' }}
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Add-ons */}
