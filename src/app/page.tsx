@@ -102,43 +102,43 @@ export default function Home() {
             backgroundSize: '48px 48px',
           }}
         />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 lg:py-24">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 items-center">
             {/* Booking Widget */}
             <div className="order-2 lg:order-1 flex justify-center lg:justify-start">
               <HomeBookingWidget />
             </div>
 
             {/* Tagline */}
-            <div className="order-1 lg:order-2 text-white space-y-6">
+            <div className="order-1 lg:order-2 text-white space-y-5 sm:space-y-6">
               <span
                 className="inline-block px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase"
                 style={{ backgroundColor: 'rgba(252,198,20,0.15)', color: '#fcc614' }}
               >
                 Trusted Shuttle Service
               </span>
-              <h1 className="text-4xl lg:text-5xl font-bold leading-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
                 Reliable shuttle transfers, wherever the road takes you
               </h1>
-              <p className="text-lg text-blue-100 max-w-lg">
+              <p className="text-base sm:text-lg text-blue-100 max-w-lg">
                 From airport runs to cross-country transfers, Londile Shuttle connects South Africa with
                 fixed-fare pricing, vetted drivers, and a fleet built for comfort.
               </p>
 
-              <div className="flex items-center gap-8 pt-4">
+              <div className="flex items-center gap-4 sm:gap-8 pt-4">
                 <div>
-                  <div className="text-3xl font-bold" style={{ color: '#fcc614' }}>5,000+</div>
-                  <div className="text-sm text-blue-200">Trips completed</div>
+                  <div className="text-2xl sm:text-3xl font-bold" style={{ color: '#fcc614' }}>5,000+</div>
+                  <div className="text-xs sm:text-sm text-blue-200">Trips completed</div>
                 </div>
                 <div className="w-px h-10 bg-white/20" />
                 <div>
-                  <div className="text-3xl font-bold" style={{ color: '#fcc614' }}>50+</div>
-                  <div className="text-sm text-blue-200">Routes covered</div>
+                  <div className="text-2xl sm:text-3xl font-bold" style={{ color: '#fcc614' }}>50+</div>
+                  <div className="text-xs sm:text-sm text-blue-200">Routes covered</div>
                 </div>
                 <div className="w-px h-10 bg-white/20" />
                 <div>
-                  <div className="text-3xl font-bold" style={{ color: '#fcc614' }}>24/7</div>
-                  <div className="text-sm text-blue-200">Support desk</div>
+                  <div className="text-2xl sm:text-3xl font-bold" style={{ color: '#fcc614' }}>24/7</div>
+                  <div className="text-xs sm:text-sm text-blue-200">Support desk</div>
                 </div>
               </div>
             </div>
@@ -147,18 +147,18 @@ export default function Home() {
       </section>
 
       {/* Features */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" id="about">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8" id="about">
         <div className="max-w-7xl mx-auto">
-          <div className="max-w-2xl mb-14">
-            <h2 className="text-3xl font-bold mb-3" style={{ color: '#003b70' }}>
+          <div className="max-w-2xl mb-10 sm:mb-14">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: '#003b70' }}>
               Why travellers choose Londile
             </h2>
-            <p className="text-gray-600 text-lg">
+            <p className="text-gray-600 text-base sm:text-lg">
               A professional shuttle operation built around reliability, transparency and safety.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {FEATURES.map((f) => (
               <div key={f.title} className="p-8 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition">
                 <div
@@ -176,14 +176,14 @@ export default function Home() {
       </section>
 
       {/* Fleet */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" id="fleet" style={{ backgroundColor: '#f8fafc' }}>
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8" id="fleet" style={{ backgroundColor: '#f8fafc' }}>
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between mb-14 flex-wrap gap-4">
+          <div className="flex items-end justify-between mb-10 sm:mb-14 flex-wrap gap-4">
             <div>
-              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003b70' }}>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: '#003b70' }}>
                 Our Fleet
               </h2>
-              <p className="text-gray-600 text-lg">Choose the right vehicle for your trip.</p>
+              <p className="text-gray-600 text-base sm:text-lg">Choose the right vehicle for your trip.</p>
             </div>
             <a
               href="/book"
@@ -225,12 +225,12 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: '#003b70' }} id="contact">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 lg:px-8" style={{ backgroundColor: '#003b70' }} id="contact">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl lg:text-4xl font-bold mb-4 text-white">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 text-white">
             Ready to book your next trip?
           </h2>
-          <p className="text-lg text-blue-100 mb-8">
+          <p className="text-base sm:text-lg text-blue-100 mb-8">
             Get an instant, fixed-fare quote and confirm your shuttle in minutes.
           </p>
           <a

@@ -15,12 +15,12 @@ export default function BookPage() {
   const tabs = [
     { key: 'south-africa', label: 'South Africa', icon: <IconCar className="w-4 h-4" /> },
     { key: 'international', label: 'Outside South Africa', icon: <IconGlobe className="w-4 h-4" /> },
-    { key: 'modify-cancel', label: 'Modify or Cancel Booking', icon: <IconSearch className="w-4 h-4" /> },
+    { key: 'modify-cancel', label: 'Modify or Cancel', icon: <IconSearch className="w-4 h-4" /> },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
         <BookingCard
           tabs={tabs}
           activeTab={activeTab}

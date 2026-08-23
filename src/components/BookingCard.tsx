@@ -25,18 +25,18 @@ export default function BookingCard({ tabs, activeTab, onTabChange, children, cl
           <button
             key={t.key}
             onClick={() => onTabChange(t.key)}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 text-xs font-medium transition-colors border-b-2 ${
+            className={`flex-1 flex flex-col items-center gap-1 py-2.5 sm:py-3 px-1 sm:px-2 text-[10px] sm:text-xs font-medium transition-colors border-b-2 min-w-0 ${
               activeTab === t.key ? '' : 'border-transparent text-gray-400 hover:text-gray-600'
             }`}
             style={activeTab === t.key ? { color: '#0068da', borderColor: '#0068da' } : undefined}
           >
             {t.icon}
-            <span className="leading-tight text-center">{t.label}</span>
+            <span className="leading-tight text-center break-words">{t.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="p-6">{children}</div>
+      <div className="p-4 sm:p-6">{children}</div>
     </div>
   );
 }

@@ -219,14 +219,14 @@ export default function BookingSouthAfrica() {
       {/* Step 1: Choose Vehicle */}
       {step === 'vehicle' && (
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Choose your ride</h1>
-          <p className="text-gray-600 mb-8">Your ride, your choice! Take a look and pick the perfect one.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Choose your ride</h1>
+          <p className="text-gray-600 mb-6 sm:mb-8">Your ride, your choice! Take a look and pick the perfect one.</p>
 
-          <div className="grid gap-6">
+          <div className="grid gap-4 sm:gap-6">
             {vehicles.map((vehicle) => (
               <div
                 key={vehicle.id}
-                className={`border-2 rounded-lg p-6 cursor-pointer transition-all ${
+                className={`border-2 rounded-lg p-4 sm:p-6 cursor-pointer transition-all ${
                   selectedVehicle?.id === vehicle.id
                     ? 'bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
@@ -234,8 +234,8 @@ export default function BookingSouthAfrica() {
                 style={selectedVehicle?.id === vehicle.id ? { borderColor: '#0068da' } : undefined}
                 onClick={() => setSelectedVehicle(vehicle)}
               >
-                <div className="flex gap-6 items-start">
-                  <div className="flex-shrink-0 w-48 h-32 bg-gray-200 rounded-lg overflow-hidden">
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 sm:items-start">
+                  <div className="w-full h-40 sm:h-32 sm:w-48 sm:flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
                     {vehicle.image_url ? (
                       <img src={vehicle.image_url} alt={vehicle.name} className="w-full h-full object-cover" />
                     ) : (
@@ -246,7 +246,7 @@ export default function BookingSouthAfrica() {
                   </div>
 
                   <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-900">
                       {vehicle.name} ({vehicle.max_passengers} seater)
                     </h2>
                     <div className="mt-3 space-y-2">
@@ -259,17 +259,17 @@ export default function BookingSouthAfrica() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end justify-between h-32">
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-between gap-4 sm:h-32">
                     <div>
                       <p className="text-sm text-gray-600">Fee</p>
-                      <p className="text-2xl font-bold text-gray-900">R730.00</p>
+                      <p className="text-xl sm:text-2xl font-bold text-gray-900">R730.00</p>
                     </div>
                     <button
                       onClick={() => {
                         setSelectedVehicle(vehicle);
                         setStep('personal');
                       }}
-                      className="text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                      className="text-white px-5 sm:px-6 py-2 rounded-lg font-medium transition-colors shrink-0"
                       style={{ backgroundColor: '#003b70' }}
                     >
                       Select Car
@@ -293,10 +293,10 @@ export default function BookingSouthAfrica() {
             ← Back
           </button>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             {/* Left: Selected Vehicle Preview */}
             <div className="lg:col-span-1">
-              <div className="sticky top-24 bg-white rounded-lg border border-gray-200 p-6">
+              <div className="lg:sticky lg:top-24 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
                 <h3 className="font-bold text-gray-900 mb-4">{selectedVehicle.name}</h3>
                 <div className="w-full h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden">
                   {selectedVehicle.image_url ? (
@@ -323,12 +323,12 @@ export default function BookingSouthAfrica() {
             </div>
 
             {/* Right: Form */}
-            <form onSubmit={handleSubmit(onPersonalDetailsValid)} noValidate className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6 space-y-8">
+            <form onSubmit={handleSubmit(onPersonalDetailsValid)} noValidate className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-6 sm:space-y-8">
               {/* Your Details */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-gray-900">Your Details</h2>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                     <input
@@ -351,7 +351,7 @@ export default function BookingSouthAfrica() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                     <input
@@ -472,7 +472,7 @@ export default function BookingSouthAfrica() {
                 {addons.length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-3">Additional Request</p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {addons.map((addon) => (
                         <label key={addon.id} className="flex items-center gap-2 text-sm">
                           <input
@@ -551,30 +551,30 @@ export default function BookingSouthAfrica() {
             ← Back
           </button>
 
-          <div className="max-w-lg mx-auto bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-            <h1 className="text-2xl font-bold text-gray-900">Payment</h1>
+          <div className="max-w-lg mx-auto bg-white rounded-lg border border-gray-200 p-4 sm:p-6 space-y-6">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Payment</h1>
 
             {/* Order Summary */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Vehicle</span>
                 <span className="font-medium text-gray-900">{selectedVehicle.name}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Guest</span>
                 <span className="font-medium text-gray-900">{bookingDetails.guestFirstName} {bookingDetails.guestSurname}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Pickup</span>
                 <span className="font-medium text-gray-900">{bookingDetails.pickupDate} at {bookingDetails.pickupTime}</span>
               </div>
               {bookingDetails.isReturnTrip && (
-                <div className="flex justify-between">
+                <div className="flex flex-wrap justify-between gap-x-2">
                   <span className="text-gray-600">Return</span>
                   <span className="font-medium text-gray-900">{bookingDetails.returnDate} at {bookingDetails.returnTime}</span>
                 </div>
               )}
-              <div className="flex justify-between">
+              <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Passengers</span>
                 <span className="font-medium text-gray-900">{bookingDetails.passengers}</span>
               </div>
@@ -584,8 +584,11 @@ export default function BookingSouthAfrica() {
               </div>
             </div>
 
+            {/* Turnstile widget has a fixed internal width; allow horizontal
+                scroll instead of clipping on very narrow viewports (<300px). */}
+
             {/* Turnstile Bot Protection */}
-            <div className="flex justify-center">
+            <div className="flex justify-center overflow-x-auto">
               <Turnstile
                 sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''}
                 action="booking"
