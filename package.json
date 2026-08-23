@@ -19,6 +19,7 @@
     "react-turnstile": "^1.1.5"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.65.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BookingLookupForm } from './BookingLookupForm';
 import BookingCard from './BookingCard';
 import InternationalNotice from './InternationalNotice';
+import AddressAutocomplete from './AddressAutocomplete';
 import {
   IconMapPinFrom,
   IconMapPinTo,
@@ -96,26 +97,18 @@ export default function HomeBookingWidget() {
 
             {/* Pickup / Dropoff */}
             <div className="space-y-3">
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-                <IconMapPinFrom className="w-4 h-4 text-gray-400 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Pickup address"
-                  value={form.pickup}
-                  onChange={(e) => update('pickup', e.target.value)}
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                />
-              </div>
-              <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-                <IconMapPinTo className="w-4 h-4 text-gray-400 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Dropoff address"
-                  value={form.dropoff}
-                  onChange={(e) => update('dropoff', e.target.value)}
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                />
-              </div>
+              <AddressAutocomplete
+                value={form.pickup}
+                onChange={(v) => update('pickup', v)}
+                placeholder="Pickup address"
+                icon={<IconMapPinFrom className="w-4 h-4 text-gray-400 shrink-0" />}
+              />
+              <AddressAutocomplete
+                value={form.dropoff}
+                onChange={(v) => update('dropoff', v)}
+                placeholder="Dropoff address"
+                icon={<IconMapPinTo className="w-4 h-4 text-gray-400 shrink-0" />}
+              />
             </div>
 
             {/* Date & Time */}
@@ -169,26 +162,18 @@ export default function HomeBookingWidget() {
                   Return Trip Details
                 </p>
 
-                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-                  <IconMapPinFrom className="w-4 h-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Return pickup address"
-                    value={form.returnPickup}
-                    onChange={(e) => update('returnPickup', e.target.value)}
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                  />
-                </div>
-                <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
-                  <IconMapPinTo className="w-4 h-4 text-gray-400 shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Return dropoff address"
-                    value={form.returnDropoff}
-                    onChange={(e) => update('returnDropoff', e.target.value)}
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-                  />
-                </div>
+                <AddressAutocomplete
+                  value={form.returnPickup}
+                  onChange={(v) => update('returnPickup', v)}
+                  placeholder="Return pickup address"
+                  icon={<IconMapPinFrom className="w-4 h-4 text-gray-400 shrink-0" />}
+                />
+                <AddressAutocomplete
+                  value={form.returnDropoff}
+                  onChange={(v) => update('returnDropoff', v)}
+                  placeholder="Return dropoff address"
+                  icon={<IconMapPinTo className="w-4 h-4 text-gray-400 shrink-0" />}
+                />
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
