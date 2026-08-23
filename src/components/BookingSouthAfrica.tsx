@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Turnstile from 'react-turnstile';
+import { BookingSchema } from '@/lib/schemas/booking';
 
 interface Vehicle {
   id: string;
@@ -11,67 +13,209 @@ interface Vehicle {
   image_url?: string;
 }
 
+interface Addon {
+  id: string;
+  name: string;
+  fee: number;
+  description?: string;
+}
+
+type Step = 'vehicle' | 'personal' | 'payment';
+
 export default function BookingSouthAfrica() {
-  const [step, setStep] = useState<'vehicle' | 'details'>('vehicle');
+  const [step, setStep] = useState<Step>('vehicle');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [addons, setAddons] = useState<Addon[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmedBookingNumber, setConfirmedBookingNumber] = useState<string | null>(null);
+
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Record<string, any>>({
+    // Your Details
+    guestFirstName: '',
+    guestSurname: '',
+    contactNumber: '',
+    email: '',
+    // Trip Details
+    address: '',
     pickupDate: '',
     pickupTime: '10:00',
-    dropoffDate: '',
-    dropoffTime: '14:00',
     isReturnTrip: false,
     returnDate: '',
     returnTime: '',
-    passengers: 1,
-    addBabySeat: false,
-    addTrailer: false,
+    passengers: '1',
+    selectedAddonIds: [] as string[],
     specialInstructions: '',
+    // Consent
+    agreeToTerms: false,
+    agreeToPrivacy: false,
   });
 
-  // Fetch vehicles on mount
+  // Fetch vehicles + addons on mount
   useEffect(() => {
-    async function fetchVehicles() {
+    async function fetchData() {
       try {
-        const response = await fetch('/api/admin/vehicles');
-        if (response.ok) {
-          const data = await response.json();
+        const [vehiclesRes, addonsRes] = await Promise.all([
+          fetch('/api/admin/vehicles'),
+          fetch('/api/addons/list'),
+        ]);
+        if (vehiclesRes.ok) {
+          const data = await vehiclesRes.json();
           setVehicles(data.filter((v: Vehicle) => v.vehicle_class === 'comfort'));
         }
+        if (addonsRes.ok) {
+          const data = await addonsRes.json();
+          setAddons(data);
+        }
       } catch (error) {
-        console.error('Failed to fetch vehicles:', error);
+        console.error('Failed to fetch booking data:', error);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchVehicles();
+    fetchData();
   }, []);
 
-  const handleDateChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-    }));
+  const update = (field: string, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const toggleAddon = (id: string) => {
+    setFormData((prev) => {
+      const set = new Set<string>(prev.selectedAddonIds);
+      set.has(id) ? set.delete(id) : set.add(id);
+      return { ...prev, selectedAddonIds: Array.from(set) };
+    });
   };
 
   const handleReturnTripChange = (checked: boolean) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       isReturnTrip: checked,
-      returnDate: checked ? '' : '',
-      returnTime: checked ? '' : '',
+      returnDate: checked ? prev.returnDate : '',
+      returnTime: checked ? prev.returnTime : '',
     }));
+  };
+
+  const buildPayload = () => {
+    const pickupISO = formData.pickupDate && formData.pickupTime
+      ? new Date(`${formData.pickupDate}T${formData.pickupTime}`).toISOString()
+      : '';
+    const returnISO = formData.isReturnTrip && formData.returnDate && formData.returnTime
+      ? new Date(`${formData.returnDate}T${formData.returnTime}`).toISOString()
+      : null;
+
+    return {
+      guestFirstName: formData.guestFirstName,
+      guestSurname: formData.guestSurname,
+      contactNumber: formData.contactNumber,
+      email: formData.email,
+      address: formData.address,
+      tripStartDate: pickupISO,
+      tripStartTime: formData.pickupTime,
+      tripEndDate: pickupISO,
+      tripEndTime: formData.pickupTime,
+      isReturnTrip: formData.isReturnTrip,
+      returnDate: returnISO,
+      returnTime: formData.isReturnTrip ? formData.returnTime : null,
+      passengerCount: Number(formData.passengers) || 1,
+      addonIds: formData.selectedAddonIds,
+      specialRequests: formData.specialInstructions,
+      agreeToTerms: formData.agreeToTerms,
+      agreeToPrivacy: formData.agreeToPrivacy,
+    };
+  };
+
+  const handleBookNow = (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = buildPayload();
+    const result = BookingSchema.safeParse(payload);
+
+    if (!result.success) {
+      const newErrors: Record<string, string> = {};
+      result.error.issues.forEach((err: any) => {
+        newErrors[err.path.join('.')] = err.message;
+      });
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
+    setStep('payment');
+  };
+
+  const handleConfirmAndPay = async () => {
+    if (!turnstileToken) {
+      setErrors({ turnstile: 'Please complete the bot verification' });
+      return;
+    }
+
+    setSubmitting(true);
+    setErrors({});
+
+    try {
+      const response = await fetch('/api/bookings/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...buildPayload(), turnstileToken }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrors({ submit: data.message || 'Booking failed. Please try again.' });
+        return;
+      }
+
+      setConfirmedBookingNumber(data.bookingNumber);
+    } catch (error) {
+      setErrors({ submit: 'Network error. Please try again.' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: '#0068da' }}></div>
         <p className="text-gray-600 mt-4">Loading vehicles...</p>
+      </div>
+    );
+  }
+
+  // Booking confirmed screen
+  if (confirmedBookingNumber) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-12">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: '#e8f1fb' }}>
+          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="#0068da" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed</h1>
+        <p className="text-gray-600 mb-6">
+          Your booking number is <span className="font-semibold" style={{ color: '#003b70' }}>{confirmedBookingNumber}</span>.
+          A confirmation has been sent to your contact number.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-6 py-3 rounded-lg font-medium text-white"
+          style={{ backgroundColor: '#003b70' }}
+        >
+          Make Another Booking
+        </button>
       </div>
     );
   }
@@ -85,25 +229,21 @@ export default function BookingSouthAfrica() {
           <p className="text-gray-600 mb-8">Your ride, your choice! Take a look and pick the perfect one.</p>
 
           <div className="grid gap-6">
-            {vehicles.map(vehicle => (
+            {vehicles.map((vehicle) => (
               <div
                 key={vehicle.id}
                 className={`border-2 rounded-lg p-6 cursor-pointer transition-all ${
                   selectedVehicle?.id === vehicle.id
-                    ? 'border-teal-600 bg-teal-50'
-                    : 'border-gray-300 hover:border-teal-400 bg-white'
+                    ? 'bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
+                style={selectedVehicle?.id === vehicle.id ? { borderColor: '#0068da' } : undefined}
                 onClick={() => setSelectedVehicle(vehicle)}
               >
                 <div className="flex gap-6 items-start">
-                  {/* Vehicle Image */}
                   <div className="flex-shrink-0 w-48 h-32 bg-gray-200 rounded-lg overflow-hidden">
                     {vehicle.image_url ? (
-                      <img
-                        src={vehicle.image_url}
-                        alt={vehicle.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={vehicle.image_url} alt={vehicle.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-300">
                         <span className="text-gray-500">No image</span>
@@ -111,24 +251,20 @@ export default function BookingSouthAfrica() {
                     )}
                   </div>
 
-                  {/* Vehicle Details */}
                   <div className="flex-1">
                     <h2 className="text-xl font-bold text-gray-900">
                       {vehicle.name} ({vehicle.max_passengers} seater)
                     </h2>
                     <div className="mt-3 space-y-2">
-                      <div className="flex items-center text-gray-600">
-                        <span className="text-lg mr-2">👥</span>
+                      <div className="flex items-center text-gray-600 text-sm">
                         Max {vehicle.max_passengers} Persons
                       </div>
-                      <div className="flex items-center text-gray-600">
-                        <span className="text-lg mr-2">👜</span>
+                      <div className="flex items-center text-gray-600 text-sm">
                         {vehicle.max_bags} large bags
                       </div>
                     </div>
                   </div>
 
-                  {/* Price and Select Button */}
                   <div className="flex flex-col items-end justify-between h-32">
                     <div>
                       <p className="text-sm text-gray-600">Fee</p>
@@ -137,11 +273,12 @@ export default function BookingSouthAfrica() {
                     <button
                       onClick={() => {
                         setSelectedVehicle(vehicle);
-                        setStep('details');
+                        setStep('personal');
                       }}
-                      className="bg-teal-700 hover:bg-teal-800 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                      className="text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                      style={{ backgroundColor: '#003b70' }}
                     >
-                      ✓ Select Car
+                      Select Car
                     </button>
                   </div>
                 </div>
@@ -151,12 +288,13 @@ export default function BookingSouthAfrica() {
         </div>
       )}
 
-      {/* Step 2: Booking Details */}
-      {step === 'details' && selectedVehicle && (
+      {/* Step 2: Personal Details */}
+      {step === 'personal' && selectedVehicle && (
         <div>
           <button
             onClick={() => setStep('vehicle')}
-            className="flex items-center text-teal-600 hover:text-teal-700 font-medium mb-6"
+            className="flex items-center font-medium mb-6"
+            style={{ color: '#0068da' }}
           >
             ← Back
           </button>
@@ -168,11 +306,7 @@ export default function BookingSouthAfrica() {
                 <h3 className="font-bold text-gray-900 mb-4">{selectedVehicle.name}</h3>
                 <div className="w-full h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden">
                   {selectedVehicle.image_url ? (
-                    <img
-                      src={selectedVehicle.image_url}
-                      alt={selectedVehicle.name}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={selectedVehicle.image_url} alt={selectedVehicle.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-300">
                       <span className="text-gray-500">No image</span>
@@ -194,142 +328,302 @@ export default function BookingSouthAfrica() {
               </div>
             </div>
 
-            {/* Right: Booking Form */}
-            <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6 space-y-6">
-              {/* Date & Time */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    📅 Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.pickupDate}
-                    onChange={e => handleDateChange('pickupDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">{formData.pickupDate || '2026-08-28'}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ⏰ Time
-                  </label>
-                  <input
-                    type="time"
-                    value={formData.pickupTime}
-                    onChange={e => handleDateChange('pickupTime', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
-                  />
-                </div>
-              </div>
+            {/* Right: Form */}
+            <form onSubmit={handleBookNow} className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6 space-y-8">
+              {/* Your Details */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-gray-900">Your Details</h2>
 
-              {/* Return Date & Time */}
-              {formData.isReturnTrip && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      📅 Return Date
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                    <input
+                      type="text"
+                      value={formData.guestFirstName}
+                      onChange={(e) => update('guestFirstName', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.guestFirstName ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+                      placeholder="John"
+                    />
+                    {errors.guestFirstName && <p className="text-xs text-red-500 mt-1">{errors.guestFirstName}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Surname</label>
+                    <input
+                      type="text"
+                      value={formData.guestSurname}
+                      onChange={(e) => update('guestSurname', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.guestSurname ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+                      placeholder="Smith"
+                    />
+                    {errors.guestSurname && <p className="text-xs text-red-500 mt-1">{errors.guestSurname}</p>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={formData.contactNumber}
+                      onChange={(e) => update('contactNumber', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.contactNumber ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+                      placeholder="+27 82 123 4567"
+                    />
+                    {errors.contactNumber && <p className="text-xs text-red-500 mt-1">{errors.contactNumber}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email (optional)</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => update('email', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Trip Details */}
+              <div className="space-y-4 pt-6 border-t border-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900">Trip Details</h2>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Address</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => update('address', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.address ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
+                    placeholder="123 Main Street, Cape Town, 8000"
+                  />
+                  {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input
                       type="date"
-                      value={formData.returnDate}
-                      onChange={e => handleDateChange('returnDate', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                      value={formData.pickupDate}
+                      onChange={(e) => update('pickupDate', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ⏰ Return Time
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Time</label>
                     <input
                       type="time"
-                      value={formData.returnTime}
-                      onChange={e => handleDateChange('returnTime', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                      value={formData.pickupTime}
+                      onChange={(e) => update('pickupTime', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
-              )}
 
-              {/* Add Return Trip Toggle */}
-              <div className="flex items-center justify-between py-3 border-t border-b border-gray-200">
-                <label className="text-sm font-medium text-gray-700">Add return trip</label>
-                <button
-                  onClick={() => handleReturnTripChange(!formData.isReturnTrip)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    formData.isReturnTrip ? 'bg-teal-600' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      formData.isReturnTrip ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                {formData.isReturnTrip && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Return Date</label>
+                      <input
+                        type="date"
+                        value={formData.returnDate}
+                        onChange={(e) => update('returnDate', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Return Time</label>
+                      <input
+                        type="time"
+                        value={formData.returnTime}
+                        onChange={(e) => update('returnTime', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                )}
+                {errors.returnDate && <p className="text-xs text-red-500">{errors.returnDate}</p>}
+                {errors.returnTime && <p className="text-xs text-red-500">{errors.returnTime}</p>}
+
+                <div className="flex items-center justify-between py-3 border-t border-b border-gray-100">
+                  <label className="text-sm font-medium text-gray-700">Add return trip</label>
+                  <button
+                    type="button"
+                    onClick={() => handleReturnTripChange(!formData.isReturnTrip)}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                    style={{ backgroundColor: formData.isReturnTrip ? '#0068da' : '#d1d5db' }}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        formData.isReturnTrip ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">No. of Passengers</label>
+                  <select
+                    value={formData.passengers}
+                    onChange={(e) => update('passengers', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
+                      <option key={num} value={num}>{num}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {addons.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-3">Additional Request</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {addons.map((addon) => (
+                        <label key={addon.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.selectedAddonIds.includes(addon.id)}
+                            onChange={() => toggleAddon(addon.id)}
+                            className="w-4 h-4 rounded"
+                            style={{ accentColor: '#0068da' }}
+                          />
+                          <span className="text-gray-700">{addon.name} (R{addon.fee})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Special Instruction</label>
+                  <textarea
+                    value={formData.specialInstructions}
+                    onChange={(e) => update('specialInstructions', e.target.value)}
+                    placeholder="Please enter note"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                   />
-                </button>
-              </div>
-
-              {/* Passengers */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  No. of Passengers
-                </label>
-                <select
-                  value={formData.passengers}
-                  onChange={e => handleDateChange('passengers', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
-                >
-                  {[1, 2, 3, 4].map(num => (
-                    <option key={num} value={num}>
-                      {num}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Add-ons */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-3">Additional Request</p>
-                <div className="space-y-3">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.addBabySeat}
-                      onChange={e => setFormData(prev => ({ ...prev, addBabySeat: e.target.checked }))}
-                      className="w-4 h-4 text-teal-600 rounded"
-                    />
-                    <span className="ml-3 text-sm text-gray-700">Add baby seat</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.addTrailer}
-                      onChange={e => setFormData(prev => ({ ...prev, addTrailer: e.target.checked }))}
-                      className="w-4 h-4 text-teal-600 rounded"
-                    />
-                    <span className="ml-3 text-sm text-gray-700">Trailer</span>
-                  </label>
                 </div>
               </div>
 
-              {/* Special Instructions */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Special Instruction
+              {/* Consent */}
+              <div className="space-y-2 pt-6 border-t border-gray-100">
+                <label className="flex items-start gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={formData.agreeToTerms}
+                    onChange={(e) => update('agreeToTerms', e.target.checked)}
+                    className="mt-0.5 w-4 h-4"
+                    style={{ accentColor: '#0068da' }}
+                  />
+                  I agree to the{' '}
+                  <a href="/policies/terms" target="_blank" className="underline" style={{ color: '#0068da' }}>Terms &amp; Conditions</a>
                 </label>
-                <textarea
-                  value={formData.specialInstructions}
-                  onChange={e => handleDateChange('specialInstructions', e.target.value)}
-                  placeholder="Please enter note"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent resize-none"
-                />
+                {errors.agreeToTerms && <p className="text-xs text-red-500">{errors.agreeToTerms}</p>}
+
+                <label className="flex items-start gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={formData.agreeToPrivacy}
+                    onChange={(e) => update('agreeToPrivacy', e.target.checked)}
+                    className="mt-0.5 w-4 h-4"
+                    style={{ accentColor: '#0068da' }}
+                  />
+                  I agree to the{' '}
+                  <a href="/policies/privacy" target="_blank" className="underline" style={{ color: '#0068da' }}>Privacy Policy</a>
+                </label>
+                {errors.agreeToPrivacy && <p className="text-xs text-red-500">{errors.agreeToPrivacy}</p>}
               </div>
 
-              {/* CTA Button */}
-              <button className="w-full bg-teal-700 hover:bg-teal-800 text-white font-medium py-3 rounded-lg transition-colors">
-                Get Instant Quote
+              <button
+                type="submit"
+                className="w-full text-white font-medium py-3 rounded-lg transition-colors"
+                style={{ backgroundColor: '#003b70' }}
+              >
+                Book Now
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Payment */}
+      {step === 'payment' && selectedVehicle && (
+        <div>
+          <button
+            onClick={() => setStep('personal')}
+            className="flex items-center font-medium mb-6"
+            style={{ color: '#0068da' }}
+          >
+            ← Back
+          </button>
+
+          <div className="max-w-lg mx-auto bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+            <h1 className="text-2xl font-bold text-gray-900">Payment</h1>
+
+            {/* Order Summary */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Vehicle</span>
+                <span className="font-medium text-gray-900">{selectedVehicle.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Guest</span>
+                <span className="font-medium text-gray-900">{formData.guestFirstName} {formData.guestSurname}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Pickup</span>
+                <span className="font-medium text-gray-900">{formData.pickupDate} at {formData.pickupTime}</span>
+              </div>
+              {formData.isReturnTrip && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Return</span>
+                  <span className="font-medium text-gray-900">{formData.returnDate} at {formData.returnTime}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Passengers</span>
+                <span className="font-medium text-gray-900">{formData.passengers}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-gray-200 text-base">
+                <span className="font-semibold text-gray-900">Total</span>
+                <span className="font-bold" style={{ color: '#003b70' }}>R730.00</span>
+              </div>
             </div>
+
+            {/* Turnstile Bot Protection */}
+            <div className="flex justify-center">
+              <Turnstile
+                sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''}
+                action="booking"
+                onSuccess={(token) => setTurnstileToken(token)}
+                onError={() => {
+                  setTurnstileToken('');
+                  setErrors((prev) => ({ ...prev, turnstile: 'Bot verification failed' }));
+                }}
+                theme="light"
+              />
+            </div>
+            {errors.turnstile && <p className="text-sm text-red-500 text-center">{errors.turnstile}</p>}
+            {errors.submit && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800">{errors.submit}</p>
+              </div>
+            )}
+
+            <button
+              onClick={handleConfirmAndPay}
+              disabled={submitting}
+              className="w-full text-white font-medium py-3 rounded-lg transition-colors disabled:opacity-50"
+              style={{ backgroundColor: '#003b70' }}
+            >
+              {submitting ? 'Processing...' : 'Confirm & Pay'}
+            </button>
+
+            <p className="text-xs text-gray-500 text-center">
+              Payment is confirmed on pickup. Online card payments are coming soon.
+            </p>
           </div>
         </div>
       )}
