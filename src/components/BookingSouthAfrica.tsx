@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Turnstile from 'react-turnstile';
-import { BookingSchema } from '@/lib/schemas/booking';
+import { BookingFormSchema, type BookingFormValues, type BookingFormInput } from '@/lib/schemas/booking';
 import AddressAutocomplete from './AddressAutocomplete';
 
 interface Vehicle {
@@ -23,6 +25,24 @@ interface Addon {
 
 type Step = 'vehicle' | 'personal' | 'payment';
 
+const DEFAULT_VALUES: BookingFormInput = {
+  guestFirstName: '',
+  guestSurname: '',
+  contactNumber: '',
+  email: '',
+  address: '',
+  pickupDate: '',
+  pickupTime: '10:00',
+  isReturnTrip: false,
+  returnDate: '',
+  returnTime: '',
+  passengers: 1,
+  selectedAddonIds: [],
+  specialRequests: '',
+  agreeToTerms: false,
+  agreeToPrivacy: false,
+};
+
 export default function BookingSouthAfrica() {
   const [step, setStep] = useState<Step>('vehicle');
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -30,32 +50,44 @@ export default function BookingSouthAfrica() {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [bookingDetails, setBookingDetails] = useState<BookingFormValues | null>(null);
+  const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
   const [turnstileToken, setTurnstileToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBookingNumber, setConfirmedBookingNumber] = useState<string | null>(null);
 
-  // Form state
-  const [formData, setFormData] = useState<Record<string, any>>({
-    // Your Details
-    guestFirstName: '',
-    guestSurname: '',
-    contactNumber: '',
-    email: '',
-    // Trip Details
-    address: '',
-    pickupDate: '',
-    pickupTime: '10:00',
-    isReturnTrip: false,
-    returnDate: '',
-    returnTime: '',
-    passengers: '1',
-    selectedAddonIds: [] as string[],
-    specialInstructions: '',
-    // Consent
-    agreeToTerms: false,
-    agreeToPrivacy: false,
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    control,
+    formState: { errors },
+  } = useForm<BookingFormInput, unknown, BookingFormValues>({
+    resolver: zodResolver(BookingFormSchema),
+    defaultValues: DEFAULT_VALUES,
   });
+
+  const isReturnTrip = watch('isReturnTrip');
+  const selectedAddonIds = watch('selectedAddonIds');
+
+  const toggleAddon = (id: string) => {
+    const set = new Set(selectedAddonIds);
+    if (set.has(id)) {
+      set.delete(id);
+    } else {
+      set.add(id);
+    }
+    setValue('selectedAddonIds', Array.from(set), { shouldValidate: true });
+  };
+
+  const handleReturnTripChange = (checked: boolean) => {
+    setValue('isReturnTrip', checked, { shouldValidate: true });
+    if (!checked) {
+      setValue('returnDate', '');
+      setValue('returnTime', '');
+    }
+  };
 
   // Fetch vehicles + addons on mount
   useEffect(() => {
@@ -83,105 +115,66 @@ export default function BookingSouthAfrica() {
     fetchData();
   }, []);
 
-  const update = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
-  };
-
-  const toggleAddon = (id: string) => {
-    setFormData((prev) => {
-      const set = new Set<string>(prev.selectedAddonIds);
-      set.has(id) ? set.delete(id) : set.add(id);
-      return { ...prev, selectedAddonIds: Array.from(set) };
-    });
-  };
-
-  const handleReturnTripChange = (checked: boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      isReturnTrip: checked,
-      returnDate: checked ? prev.returnDate : '',
-      returnTime: checked ? prev.returnTime : '',
-    }));
-  };
-
-  const buildPayload = () => {
-    const pickupISO = formData.pickupDate && formData.pickupTime
-      ? new Date(`${formData.pickupDate}T${formData.pickupTime}`).toISOString()
-      : '';
-    const returnISO = formData.isReturnTrip && formData.returnDate && formData.returnTime
-      ? new Date(`${formData.returnDate}T${formData.returnTime}`).toISOString()
+  const buildApiPayload = (data: BookingFormValues) => {
+    const pickupISO = new Date(`${data.pickupDate}T${data.pickupTime}`).toISOString();
+    const returnISO = data.isReturnTrip && data.returnDate && data.returnTime
+      ? new Date(`${data.returnDate}T${data.returnTime}`).toISOString()
       : null;
 
     return {
-      guestFirstName: formData.guestFirstName,
-      guestSurname: formData.guestSurname,
-      contactNumber: formData.contactNumber,
-      email: formData.email,
-      address: formData.address,
+      guestFirstName: data.guestFirstName,
+      guestSurname: data.guestSurname,
+      contactNumber: data.contactNumber,
+      email: data.email,
+      address: data.address,
       tripStartDate: pickupISO,
-      tripStartTime: formData.pickupTime,
+      tripStartTime: data.pickupTime,
       tripEndDate: pickupISO,
-      tripEndTime: formData.pickupTime,
-      isReturnTrip: formData.isReturnTrip,
+      tripEndTime: data.pickupTime,
+      isReturnTrip: data.isReturnTrip,
       returnDate: returnISO,
-      returnTime: formData.isReturnTrip ? formData.returnTime : null,
-      passengerCount: Number(formData.passengers) || 1,
-      addonIds: formData.selectedAddonIds,
-      specialRequests: formData.specialInstructions,
-      agreeToTerms: formData.agreeToTerms,
-      agreeToPrivacy: formData.agreeToPrivacy,
+      returnTime: data.isReturnTrip ? data.returnTime : null,
+      passengerCount: data.passengers,
+      addonIds: data.selectedAddonIds,
+      specialRequests: data.specialRequests,
+      agreeToTerms: data.agreeToTerms,
+      agreeToPrivacy: data.agreeToPrivacy,
     };
   };
 
-  const handleBookNow = (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = buildPayload();
-    const result = BookingSchema.safeParse(payload);
-
-    if (!result.success) {
-      const newErrors: Record<string, string> = {};
-      result.error.issues.forEach((err: any) => {
-        newErrors[err.path.join('.')] = err.message;
-      });
-      setErrors(newErrors);
-      return;
-    }
-
-    setErrors({});
+  const onPersonalDetailsValid = (data: BookingFormValues) => {
+    setBookingDetails(data);
     setStep('payment');
   };
 
   const handleConfirmAndPay = async () => {
+    if (!bookingDetails) return;
+
     if (!turnstileToken) {
-      setErrors({ turnstile: 'Please complete the bot verification' });
+      setSubmitErrors({ turnstile: 'Please complete the bot verification' });
       return;
     }
 
     setSubmitting(true);
-    setErrors({});
+    setSubmitErrors({});
 
     try {
       const response = await fetch('/api/bookings/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...buildPayload(), turnstileToken }),
+        body: JSON.stringify({ ...buildApiPayload(bookingDetails), turnstileToken }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setErrors({ submit: data.message || 'Booking failed. Please try again.' });
+        setSubmitErrors({ submit: data.message || 'Booking failed. Please try again.' });
         return;
       }
 
       setConfirmedBookingNumber(data.bookingNumber);
     } catch (error) {
-      setErrors({ submit: 'Network error. Please try again.' });
+      setSubmitErrors({ submit: 'Network error. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -330,7 +323,7 @@ export default function BookingSouthAfrica() {
             </div>
 
             {/* Right: Form */}
-            <form onSubmit={handleBookNow} className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6 space-y-8">
+            <form onSubmit={handleSubmit(onPersonalDetailsValid)} noValidate className="lg:col-span-2 bg-white rounded-lg border border-gray-200 p-6 space-y-8">
               {/* Your Details */}
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-gray-900">Your Details</h2>
@@ -340,23 +333,21 @@ export default function BookingSouthAfrica() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                     <input
                       type="text"
-                      value={formData.guestFirstName}
-                      onChange={(e) => update('guestFirstName', e.target.value)}
+                      {...register('guestFirstName')}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.guestFirstName ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       placeholder="John"
                     />
-                    {errors.guestFirstName && <p className="text-xs text-red-500 mt-1">{errors.guestFirstName}</p>}
+                    {errors.guestFirstName && <p className="text-xs text-red-500 mt-1">{errors.guestFirstName.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Surname</label>
                     <input
                       type="text"
-                      value={formData.guestSurname}
-                      onChange={(e) => update('guestSurname', e.target.value)}
+                      {...register('guestSurname')}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.guestSurname ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       placeholder="Smith"
                     />
-                    {errors.guestSurname && <p className="text-xs text-red-500 mt-1">{errors.guestSurname}</p>}
+                    {errors.guestSurname && <p className="text-xs text-red-500 mt-1">{errors.guestSurname.message}</p>}
                   </div>
                 </div>
 
@@ -365,22 +356,21 @@ export default function BookingSouthAfrica() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                     <input
                       type="tel"
-                      value={formData.contactNumber}
-                      onChange={(e) => update('contactNumber', e.target.value)}
+                      {...register('contactNumber')}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.contactNumber ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       placeholder="+27 82 123 4567"
                     />
-                    {errors.contactNumber && <p className="text-xs text-red-500 mt-1">{errors.contactNumber}</p>}
+                    {errors.contactNumber && <p className="text-xs text-red-500 mt-1">{errors.contactNumber.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Email (optional)</label>
                     <input
                       type="email"
-                      value={formData.email}
-                      onChange={(e) => update('email', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      {...register('email')}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.email ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       placeholder="john@example.com"
                     />
+                    {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
                   </div>
                 </div>
               </div>
@@ -391,13 +381,19 @@ export default function BookingSouthAfrica() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Address</label>
-                  <AddressAutocomplete
-                    value={formData.address}
-                    onChange={(v) => update('address', v)}
-                    placeholder="123 Main Street, Cape Town, 8000"
-                    wrapperClassName={`w-full px-3 py-2 border rounded-lg ${errors.address ? 'border-red-400' : 'border-gray-300'}`}
+                  <Controller
+                    name="address"
+                    control={control}
+                    render={({ field }) => (
+                      <AddressAutocomplete
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="123 Main Street, Cape Town, 8000"
+                        wrapperClassName={`w-full px-3 py-2 border rounded-lg ${errors.address ? 'border-red-400' : 'border-gray-300'}`}
+                      />
+                    )}
                   />
-                  {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address}</p>}
+                  {errors.address && <p className="text-xs text-red-500 mt-1">{errors.address.message}</p>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -405,58 +401,56 @@ export default function BookingSouthAfrica() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
                     <input
                       type="date"
-                      value={formData.pickupDate}
-                      onChange={(e) => update('pickupDate', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      {...register('pickupDate')}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.pickupDate ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                     />
+                    {errors.pickupDate && <p className="text-xs text-red-500 mt-1">{errors.pickupDate.message}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Time</label>
                     <input
                       type="time"
-                      value={formData.pickupTime}
-                      onChange={(e) => update('pickupTime', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      {...register('pickupTime')}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.pickupTime ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                     />
+                    {errors.pickupTime && <p className="text-xs text-red-500 mt-1">{errors.pickupTime.message}</p>}
                   </div>
                 </div>
 
-                {formData.isReturnTrip && (
+                {isReturnTrip && (
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Return Date</label>
                       <input
                         type="date"
-                        value={formData.returnDate}
-                        onChange={(e) => update('returnDate', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        {...register('returnDate')}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.returnDate ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       />
+                      {errors.returnDate && <p className="text-xs text-red-500 mt-1">{errors.returnDate.message}</p>}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Return Time</label>
                       <input
                         type="time"
-                        value={formData.returnTime}
-                        onChange={(e) => update('returnTime', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        {...register('returnTime')}
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${errors.returnTime ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                       />
+                      {errors.returnTime && <p className="text-xs text-red-500 mt-1">{errors.returnTime.message}</p>}
                     </div>
                   </div>
                 )}
-                {errors.returnDate && <p className="text-xs text-red-500">{errors.returnDate}</p>}
-                {errors.returnTime && <p className="text-xs text-red-500">{errors.returnTime}</p>}
 
                 <div className="flex items-center justify-between py-3 border-t border-b border-gray-100">
                   <label className="text-sm font-medium text-gray-700">Add return trip</label>
                   <button
                     type="button"
-                    onClick={() => handleReturnTripChange(!formData.isReturnTrip)}
+                    onClick={() => handleReturnTripChange(!isReturnTrip)}
                     className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-                    style={{ backgroundColor: formData.isReturnTrip ? '#0068da' : '#d1d5db' }}
+                    style={{ backgroundColor: isReturnTrip ? '#0068da' : '#d1d5db' }}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        formData.isReturnTrip ? 'translate-x-6' : 'translate-x-1'
+                        isReturnTrip ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
                   </button>
@@ -465,14 +459,14 @@ export default function BookingSouthAfrica() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">No. of Passengers</label>
                   <select
-                    value={formData.passengers}
-                    onChange={(e) => update('passengers', e.target.value)}
+                    {...register('passengers', { valueAsNumber: true })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => (
                       <option key={num} value={num}>{num}</option>
                     ))}
                   </select>
+                  {errors.passengers && <p className="text-xs text-red-500 mt-1">{errors.passengers.message}</p>}
                 </div>
 
                 {addons.length > 0 && (
@@ -483,7 +477,7 @@ export default function BookingSouthAfrica() {
                         <label key={addon.id} className="flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
-                            checked={formData.selectedAddonIds.includes(addon.id)}
+                            checked={selectedAddonIds.includes(addon.id)}
                             onChange={() => toggleAddon(addon.id)}
                             className="w-4 h-4 rounded"
                             style={{ accentColor: '#0068da' }}
@@ -498,12 +492,12 @@ export default function BookingSouthAfrica() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Special Instruction</label>
                   <textarea
-                    value={formData.specialInstructions}
-                    onChange={(e) => update('specialInstructions', e.target.value)}
+                    {...register('specialRequests')}
                     placeholder="Please enter note"
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent resize-none ${errors.specialRequests ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-blue-500'}`}
                   />
+                  {errors.specialRequests && <p className="text-xs text-red-500 mt-1">{errors.specialRequests.message}</p>}
                 </div>
               </div>
 
@@ -512,28 +506,26 @@ export default function BookingSouthAfrica() {
                 <label className="flex items-start gap-2 text-sm text-gray-600">
                   <input
                     type="checkbox"
-                    checked={formData.agreeToTerms}
-                    onChange={(e) => update('agreeToTerms', e.target.checked)}
+                    {...register('agreeToTerms')}
                     className="mt-0.5 w-4 h-4"
                     style={{ accentColor: '#0068da' }}
                   />
                   I agree to the{' '}
                   <a href="/policies/terms" target="_blank" className="underline" style={{ color: '#0068da' }}>Terms &amp; Conditions</a>
                 </label>
-                {errors.agreeToTerms && <p className="text-xs text-red-500">{errors.agreeToTerms}</p>}
+                {errors.agreeToTerms && <p className="text-xs text-red-500">{errors.agreeToTerms.message}</p>}
 
                 <label className="flex items-start gap-2 text-sm text-gray-600">
                   <input
                     type="checkbox"
-                    checked={formData.agreeToPrivacy}
-                    onChange={(e) => update('agreeToPrivacy', e.target.checked)}
+                    {...register('agreeToPrivacy')}
                     className="mt-0.5 w-4 h-4"
                     style={{ accentColor: '#0068da' }}
                   />
                   I agree to the{' '}
                   <a href="/policies/privacy" target="_blank" className="underline" style={{ color: '#0068da' }}>Privacy Policy</a>
                 </label>
-                {errors.agreeToPrivacy && <p className="text-xs text-red-500">{errors.agreeToPrivacy}</p>}
+                {errors.agreeToPrivacy && <p className="text-xs text-red-500">{errors.agreeToPrivacy.message}</p>}
               </div>
 
               <button
@@ -549,7 +541,7 @@ export default function BookingSouthAfrica() {
       )}
 
       {/* Step 3: Payment */}
-      {step === 'payment' && selectedVehicle && (
+      {step === 'payment' && selectedVehicle && bookingDetails && (
         <div>
           <button
             onClick={() => setStep('personal')}
@@ -570,21 +562,21 @@ export default function BookingSouthAfrica() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Guest</span>
-                <span className="font-medium text-gray-900">{formData.guestFirstName} {formData.guestSurname}</span>
+                <span className="font-medium text-gray-900">{bookingDetails.guestFirstName} {bookingDetails.guestSurname}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Pickup</span>
-                <span className="font-medium text-gray-900">{formData.pickupDate} at {formData.pickupTime}</span>
+                <span className="font-medium text-gray-900">{bookingDetails.pickupDate} at {bookingDetails.pickupTime}</span>
               </div>
-              {formData.isReturnTrip && (
+              {bookingDetails.isReturnTrip && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Return</span>
-                  <span className="font-medium text-gray-900">{formData.returnDate} at {formData.returnTime}</span>
+                  <span className="font-medium text-gray-900">{bookingDetails.returnDate} at {bookingDetails.returnTime}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Passengers</span>
-                <span className="font-medium text-gray-900">{formData.passengers}</span>
+                <span className="font-medium text-gray-900">{bookingDetails.passengers}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-gray-200 text-base">
                 <span className="font-semibold text-gray-900">Total</span>
@@ -600,15 +592,15 @@ export default function BookingSouthAfrica() {
                 onSuccess={(token) => setTurnstileToken(token)}
                 onError={() => {
                   setTurnstileToken('');
-                  setErrors((prev) => ({ ...prev, turnstile: 'Bot verification failed' }));
+                  setSubmitErrors((prev) => ({ ...prev, turnstile: 'Bot verification failed' }));
                 }}
                 theme="light"
               />
             </div>
-            {errors.turnstile && <p className="text-sm text-red-500 text-center">{errors.turnstile}</p>}
-            {errors.submit && (
+            {submitErrors.turnstile && <p className="text-sm text-red-500 text-center">{submitErrors.turnstile}</p>}
+            {submitErrors.submit && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-800">{errors.submit}</p>
+                <p className="text-sm text-red-800">{submitErrors.submit}</p>
               </div>
             )}
 

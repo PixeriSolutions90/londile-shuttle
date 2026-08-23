@@ -6,7 +6,9 @@ import { z } from "zod";
  * Validates guest and booking information
  */
 
-export const BookingSchema = z.object({
+// Base field definitions (kept separate from the refinements below so
+// individual field validators can be reused, e.g. `BookingFields.shape.email`).
+const BookingFields = z.object({
   // Guest Information (POPIA regulated)
   guestFirstName: z
     .string()
@@ -111,7 +113,9 @@ export const BookingSchema = z.object({
   agreeToPrivacy: z
     .boolean()
     .refine((val) => val === true, "You must agree to the Privacy Policy"),
-})
+});
+
+export const BookingSchema = BookingFields
   // Custom validation: dropoff date must be on or after pickup date
   .refine(
     (data) => data.tripEndDate >= data.tripStartDate,
@@ -160,6 +164,83 @@ export const BookingSchema = z.object({
 
 // Type inference from schema
 export type BookingFormData = z.infer<typeof BookingSchema>;
+
+/**
+ * Booking Form UI Schema
+ * Used for react-hook-form client-side validation on the booking wizard.
+ * Reuses the same field-level validators as BookingSchema (name, phone, email,
+ * address, consent) but works against the raw shape of the UI's date/time
+ * pickers instead of the combined ISO datetime strings the API expects.
+ */
+export const BookingFormSchema = z
+  .object({
+    guestFirstName: BookingFields.shape.guestFirstName,
+    guestSurname: BookingFields.shape.guestSurname,
+    contactNumber: BookingFields.shape.contactNumber,
+    email: BookingFields.shape.email,
+    address: BookingFields.shape.address,
+
+    pickupDate: z.string().min(1, "Pickup date is required"),
+    pickupTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/, "Pickup time is required"),
+
+    isReturnTrip: z.boolean(),
+    returnDate: z.string().optional().or(z.literal("")),
+    returnTime: z.string().optional().or(z.literal("")),
+
+    // Bound via register('passengers', { valueAsNumber: true }) so the form
+    // always produces a number, keeping this schema's input/output types
+    // identical (avoids z.coerce, which would otherwise make them diverge
+    // and break zodResolver's inferred useForm<> generic).
+    passengers: z
+      .number()
+      .int()
+      .min(1, "At least 1 passenger required")
+      .max(8, "Maximum 8 passengers per booking"),
+
+    selectedAddonIds: z.array(z.string()),
+
+    specialRequests: BookingFields.shape.specialRequests,
+
+    agreeToTerms: BookingFields.shape.agreeToTerms,
+    agreeToPrivacy: BookingFields.shape.agreeToPrivacy,
+  })
+  // No past pickup dates
+  .refine(
+    (data) => {
+      const pickup = new Date(`${data.pickupDate}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return !Number.isNaN(pickup.getTime()) && pickup >= today;
+    },
+    { message: "Pickup date cannot be in the past", path: ["pickupDate"] }
+  )
+  // Return date + time required if return trip is enabled
+  .refine((data) => !data.isReturnTrip || !!data.returnDate, {
+    message: "Return date is required for return trips",
+    path: ["returnDate"],
+  })
+  .refine((data) => !data.isReturnTrip || !!data.returnTime, {
+    message: "Return time is required for return trips",
+    path: ["returnTime"],
+  })
+  // Return date must be on or after the outbound pickup date
+  .refine(
+    (data) => {
+      if (!data.isReturnTrip || !data.returnDate) return true;
+      return new Date(data.returnDate) >= new Date(data.pickupDate);
+    },
+    { message: "Return date must be on or after the pickup date", path: ["returnDate"] }
+  );
+
+// Output type (after Zod transforms/defaults run) — what handleSubmit's
+// callback receives.
+export type BookingFormValues = z.output<typeof BookingFormSchema>;
+// Input type (before transforms) — what register()/watch()/setValue() and
+// defaultValues work with. These diverge because of the .optional().transform()
+// fields (email, specialRequests), so useForm must be typed with this one.
+export type BookingFormInput = z.input<typeof BookingFormSchema>;
 
 /**
  * Guest Booking Lookup Schema
