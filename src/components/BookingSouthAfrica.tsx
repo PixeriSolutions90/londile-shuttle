@@ -1,20 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Turnstile from 'react-turnstile';
 import { BookingFormSchema, type BookingFormValues, type BookingFormInput } from '@/lib/schemas/booking';
 import AddressAutocomplete from './AddressAutocomplete';
-
-interface Vehicle {
-  id: string;
-  name: string;
-  vehicle_class: string;
-  max_passengers: number;
-  max_bags: number;
-  image_url?: string;
-}
+import { QUOTE_SESSION_KEY, type QuoteResponse, type VehicleQuote } from '@/lib/types/quote';
 
 interface Addon {
   id: string;
@@ -45,10 +37,13 @@ const DEFAULT_VALUES: BookingFormInput = {
 
 export default function BookingSouthAfrica() {
   const [step, setStep] = useState<Step>('vehicle');
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [quotes, setQuotes] = useState<VehicleQuote[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quoteError, setQuoteError] = useState('');
+
+  const selectedQuote = quotes.find((q) => q.vehicleId === selectedVehicleId) ?? null;
 
   const [bookingDetails, setBookingDetails] = useState<BookingFormValues | null>(null);
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
@@ -89,31 +84,75 @@ export default function BookingSouthAfrica() {
     }
   };
 
-  // Fetch vehicles + addons on mount
+  const fetchQuote = async (passengerCount: number, isReturn: boolean) => {
+    setQuoteError('');
+    try {
+      const response = await fetch('/api/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passengerCount, isReturnTrip: isReturn }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setQuoteError(data.message || 'Could not load pricing right now.');
+        return;
+      }
+
+      const quote: QuoteResponse = await response.json();
+      setQuotes(quote.quotes);
+    } catch {
+      setQuoteError('Network error while loading pricing.');
+    }
+  };
+
+  // On mount: use the quote from the homepage widget if the guest arrived
+  // with one already (sessionStorage), otherwise fetch a default quote
+  // (1 passenger, one-way) so /book still works when visited directly.
   useEffect(() => {
-    async function fetchData() {
+    async function init() {
       try {
-        const [vehiclesRes, addonsRes] = await Promise.all([
-          fetch('/api/admin/vehicles'),
-          fetch('/api/addons/list'),
-        ]);
-        if (vehiclesRes.ok) {
-          const data = await vehiclesRes.json();
-          setVehicles(data.filter((v: Vehicle) => v.vehicle_class === 'comfort'));
+        const stored = sessionStorage.getItem(QUOTE_SESSION_KEY);
+        if (stored) {
+          const quote: QuoteResponse = JSON.parse(stored);
+          setQuotes(quote.quotes);
+        } else {
+          await fetchQuote(1, false);
         }
+      } catch {
+        await fetchQuote(1, false);
+      }
+
+      try {
+        const addonsRes = await fetch('/api/addons/list');
         if (addonsRes.ok) {
-          const data = await addonsRes.json();
-          setAddons(data);
+          setAddons(await addonsRes.json());
         }
       } catch (error) {
-        console.error('Failed to fetch booking data:', error);
+        console.error('Failed to fetch addons:', error);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchData();
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const passengers = watch('passengers');
+
+  // Keep displayed fares accurate: re-quote whenever the return-trip toggle
+  // or passenger count changes in Step 2, skipping the very first render
+  // (the mount effect above already loaded an initial quote).
+  const isFirstQuoteRender = useRef(true);
+  useEffect(() => {
+    if (isFirstQuoteRender.current) {
+      isFirstQuoteRender.current = false;
+      return;
+    }
+    fetchQuote(passengers || 1, isReturnTrip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReturnTrip, passengers]);
 
   const buildApiPayload = (data: BookingFormValues) => {
     const pickupISO = new Date(`${data.pickupDate}T${data.pickupTime}`).toISOString();
@@ -222,22 +261,32 @@ export default function BookingSouthAfrica() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Choose your ride</h1>
           <p className="text-gray-600 mb-6 sm:mb-8">Your ride, your choice! Take a look and pick the perfect one.</p>
 
+          {quoteError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+              {quoteError}
+            </div>
+          )}
+
+          {quotes.length === 0 && !quoteError && (
+            <p className="text-gray-500 text-sm">No vehicles available right now. Please try again shortly.</p>
+          )}
+
           <div className="grid gap-4 sm:gap-6">
-            {vehicles.map((vehicle) => (
+            {quotes.map((quote) => (
               <div
-                key={vehicle.id}
+                key={quote.vehicleId}
                 className={`border-2 rounded-lg p-4 sm:p-6 cursor-pointer transition-all ${
-                  selectedVehicle?.id === vehicle.id
+                  selectedVehicleId === quote.vehicleId
                     ? 'bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
-                style={selectedVehicle?.id === vehicle.id ? { borderColor: '#0068da' } : undefined}
-                onClick={() => setSelectedVehicle(vehicle)}
+                style={selectedVehicleId === quote.vehicleId ? { borderColor: '#0068da' } : undefined}
+                onClick={() => setSelectedVehicleId(quote.vehicleId)}
               >
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 sm:items-start">
                   <div className="w-full h-40 sm:h-32 sm:w-48 sm:flex-shrink-0 bg-gray-200 rounded-lg overflow-hidden">
-                    {vehicle.image_url ? (
-                      <img src={vehicle.image_url} alt={vehicle.name} className="w-full h-full object-cover" />
+                    {quote.imageUrl ? (
+                      <img src={quote.imageUrl} alt={quote.vehicleName} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gray-300">
                         <span className="text-gray-500">No image</span>
@@ -247,14 +296,14 @@ export default function BookingSouthAfrica() {
 
                   <div className="flex-1">
                     <h2 className="text-lg sm:text-xl font-bold text-gray-900">
-                      {vehicle.name} ({vehicle.max_passengers} seater)
+                      {quote.vehicleName} ({quote.maxPassengers} seater)
                     </h2>
                     <div className="mt-3 space-y-2">
                       <div className="flex items-center text-gray-600 text-sm">
-                        Max {vehicle.max_passengers} Persons
+                        Max {quote.maxPassengers} Persons
                       </div>
                       <div className="flex items-center text-gray-600 text-sm">
-                        {vehicle.max_bags} large bags
+                        {quote.maxBags} large bags
                       </div>
                     </div>
                   </div>
@@ -262,11 +311,11 @@ export default function BookingSouthAfrica() {
                   <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-between gap-4 sm:h-32">
                     <div>
                       <p className="text-sm text-gray-600">Fee</p>
-                      <p className="text-xl sm:text-2xl font-bold text-gray-900">R730.00</p>
+                      <p className="text-xl sm:text-2xl font-bold text-gray-900">R{quote.totalFare.toFixed(2)}</p>
                     </div>
                     <button
                       onClick={() => {
-                        setSelectedVehicle(vehicle);
+                        setSelectedVehicleId(quote.vehicleId);
                         setStep('personal');
                       }}
                       className="text-white px-5 sm:px-6 py-2 rounded-lg font-medium transition-colors shrink-0"
@@ -283,7 +332,7 @@ export default function BookingSouthAfrica() {
       )}
 
       {/* Step 2: Personal Details */}
-      {step === 'personal' && selectedVehicle && (
+      {step === 'personal' && selectedQuote && (
         <div>
           <button
             onClick={() => setStep('vehicle')}
@@ -297,10 +346,10 @@ export default function BookingSouthAfrica() {
             {/* Left: Selected Vehicle Preview */}
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-24 bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
-                <h3 className="font-bold text-gray-900 mb-4">{selectedVehicle.name}</h3>
+                <h3 className="font-bold text-gray-900 mb-4">{selectedQuote.vehicleName}</h3>
                 <div className="w-full h-40 bg-gray-200 rounded-lg mb-4 overflow-hidden">
-                  {selectedVehicle.image_url ? (
-                    <img src={selectedVehicle.image_url} alt={selectedVehicle.name} className="w-full h-full object-cover" />
+                  {selectedQuote.imageUrl ? (
+                    <img src={selectedQuote.imageUrl} alt={selectedQuote.vehicleName} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-300">
                       <span className="text-gray-500">No image</span>
@@ -309,15 +358,18 @@ export default function BookingSouthAfrica() {
                 </div>
                 <div className="space-y-2 mb-6">
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Passengers:</span> {selectedVehicle.max_passengers}
+                    <span className="font-medium">Passengers:</span> {selectedQuote.maxPassengers}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <span className="font-medium">Bags:</span> {selectedVehicle.max_bags}
+                    <span className="font-medium">Bags:</span> {selectedQuote.maxBags}
                   </p>
                 </div>
                 <div className="border-t pt-4">
-                  <p className="text-sm text-gray-600 mb-1">Estimated Fee</p>
-                  <p className="text-2xl font-bold text-gray-900">R730.00</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {isReturnTrip ? 'Estimated Fee (return trip)' : 'Estimated Fee'}
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">R{selectedQuote.totalFare.toFixed(2)}</p>
+                  {quoteError && <p className="text-xs text-red-500 mt-1">{quoteError}</p>}
                 </div>
               </div>
             </div>
@@ -541,7 +593,7 @@ export default function BookingSouthAfrica() {
       )}
 
       {/* Step 3: Payment */}
-      {step === 'payment' && selectedVehicle && bookingDetails && (
+      {step === 'payment' && selectedQuote && bookingDetails && (
         <div>
           <button
             onClick={() => setStep('personal')}
@@ -558,7 +610,7 @@ export default function BookingSouthAfrica() {
             <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
               <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Vehicle</span>
-                <span className="font-medium text-gray-900">{selectedVehicle.name}</span>
+                <span className="font-medium text-gray-900">{selectedQuote.vehicleName}</span>
               </div>
               <div className="flex flex-wrap justify-between gap-x-2">
                 <span className="text-gray-600">Guest</span>
@@ -580,7 +632,7 @@ export default function BookingSouthAfrica() {
               </div>
               <div className="flex justify-between pt-2 border-t border-gray-200 text-base">
                 <span className="font-semibold text-gray-900">Total</span>
-                <span className="font-bold" style={{ color: '#003b70' }}>R730.00</span>
+                <span className="font-bold" style={{ color: '#003b70' }}>R{selectedQuote.totalFare.toFixed(2)}</span>
               </div>
             </div>
 

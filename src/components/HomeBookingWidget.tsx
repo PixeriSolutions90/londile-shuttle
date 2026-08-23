@@ -6,6 +6,7 @@ import { BookingLookupForm } from './BookingLookupForm';
 import BookingCard from './BookingCard';
 import InternationalNotice from './InternationalNotice';
 import AddressAutocomplete from './AddressAutocomplete';
+import { QUOTE_SESSION_KEY, type QuoteResponse } from '@/lib/types/quote';
 import {
   IconMapPinFrom,
   IconMapPinTo,
@@ -76,9 +77,45 @@ export default function HomeBookingWidget() {
     return parts.length ? parts.join(', ') : 'No. of passengers';
   };
 
-  const handleQuote = (e: React.FormEvent) => {
+  const [isQuoting, setIsQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
+
+  const handleQuote = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push('/book');
+    setQuoteError('');
+    setIsQuoting(true);
+
+    try {
+      const passengerCount = Math.max(1, form.adults + form.children + form.infants);
+      const response = await fetch('/api/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          passengerCount,
+          isReturnTrip: form.isReturn,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setQuoteError(data.message || 'Could not get a quote right now. Please try again.');
+        return;
+      }
+
+      const quote: QuoteResponse = await response.json();
+
+      if (quote.quotes.length === 0) {
+        setQuoteError('No vehicles available for that many passengers. Try reducing your party size.');
+        return;
+      }
+
+      sessionStorage.setItem(QUOTE_SESSION_KEY, JSON.stringify(quote));
+      router.push('/book');
+    } catch (error) {
+      setQuoteError('Network error. Please try again.');
+    } finally {
+      setIsQuoting(false);
+    }
   };
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -345,12 +382,15 @@ export default function HomeBookingWidget() {
               className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none placeholder:text-gray-400 resize-none"
             />
 
+            {quoteError && <p className="text-xs text-red-500 text-center">{quoteError}</p>}
+
             <button
               type="submit"
-              className="w-full py-3 rounded-lg font-semibold text-white transition-colors"
+              disabled={isQuoting}
+              className="w-full py-3 rounded-lg font-semibold text-white transition-colors disabled:opacity-50"
               style={{ backgroundColor: '#003b70' }}
             >
-              Get Instant Quote
+              {isQuoting ? 'Getting your quote...' : 'Get Instant Quote'}
             </button>
           </form>
         )}

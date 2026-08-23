@@ -259,6 +259,33 @@ export const GuestBookingLookupSchema = z.object({
 export type GuestBookingLookupData = z.infer<typeof GuestBookingLookupSchema>;
 
 /**
+ * Quote Request Schema
+ * Used by POST /api/quote — a lightweight, pre-booking fare estimate.
+ * No PII is collected here (no name/contact/address), so this endpoint is
+ * rate-limited but doesn't require Turnstile like the booking-creation flow.
+ */
+export const QuoteRequestSchema = z.object({
+  passengerCount: z
+    .number()
+    .int()
+    .min(1, "At least 1 passenger required")
+    .max(8, "Maximum 8 passengers per booking"),
+
+  isReturnTrip: z.boolean().default(false),
+
+  // Route distance in km, used for per-km pricing rules. Optional — omitted
+  // or 0 means flat base-fee pricing (no live route distance lookup yet).
+  estimatedKm: z.number().min(0).max(2000).default(0),
+
+  // Pricing zone name (see zones table). Defaults to the only zone with a
+  // full local pricing table today; callers can override once zone
+  // detection from pickup/dropoff coordinates is built.
+  zoneName: z.string().min(1).default("Cape Town Local"),
+});
+
+export type QuoteRequestData = z.infer<typeof QuoteRequestSchema>;
+
+/**
  * Validation helper: Safe parse with error formatting
  */
 export function validateBookingForm(data: unknown) {
