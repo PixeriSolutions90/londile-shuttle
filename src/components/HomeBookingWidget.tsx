@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookingLookupForm } from './BookingLookupForm';
+import BookingCard from './BookingCard';
+import InternationalNotice from './InternationalNotice';
 import {
   IconMapPinFrom,
   IconMapPinTo,
@@ -85,27 +87,7 @@ export default function HomeBookingWidget() {
   ];
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-full max-w-md">
-      {/* Tabs */}
-      <div className="flex border-b border-gray-100">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 text-xs font-medium transition-colors border-b-2 ${
-              tab === t.key
-                ? 'border-current text-white'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
-            }`}
-            style={tab === t.key ? { color: '#0068da', borderColor: '#0068da' } : undefined}
-          >
-            {t.icon}
-            <span className="leading-tight text-center">{t.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="p-6">
+    <BookingCard tabs={tabs} activeTab={tab} onTabChange={(k) => setTab(k as Tab)} className="max-w-md">
         {tab === 'local' && (
           <form onSubmit={handleQuote} className="space-y-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -388,29 +370,13 @@ export default function HomeBookingWidget() {
           </form>
         )}
 
-        {tab === 'international' && (
-          <div className="text-center py-8 space-y-3">
-            <IconGlobe className="w-10 h-10 mx-auto text-gray-300" />
-            <h3 className="font-semibold text-gray-900">Cross-Border &amp; International Transfers</h3>
-            <p className="text-sm text-gray-500">
-              Travelling beyond South Africa? Our team arranges cross-border and international shuttle transfers on request.
-            </p>
-            <a
-              href="mailto:info@londileshuttle.co.za"
-              className="inline-block mt-2 px-6 py-2.5 rounded-lg font-medium text-white text-sm"
-              style={{ backgroundColor: '#0068da' }}
-            >
-              Contact Us
-            </a>
-          </div>
-        )}
+        {tab === 'international' && <InternationalNotice />}
 
         {tab === 'modify' && (
           <div className="[&_h2]:text-lg [&_h2]:mb-4">
             <BookingLookupForm />
           </div>
         )}
-      </div>
-    </div>
+    </BookingCard>
   );
 }

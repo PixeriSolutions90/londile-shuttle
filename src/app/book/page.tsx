@@ -3,44 +3,33 @@
 import { useState } from 'react';
 import BookingSouthAfrica from '@/components/BookingSouthAfrica';
 import ModifyOrCancelBooking from '@/components/ModifyOrCancelBooking';
+import BookingCard from '@/components/BookingCard';
+import InternationalNotice from '@/components/InternationalNotice';
+import { IconCar, IconGlobe, IconSearch } from '@/components/icons';
+
+type Tab = 'south-africa' | 'international' | 'modify-cancel';
 
 export default function BookPage() {
-  const [activeTab, setActiveTab] = useState<'south-africa' | 'modify-cancel'>('south-africa');
+  const [activeTab, setActiveTab] = useState<Tab>('south-africa');
+
+  const tabs = [
+    { key: 'south-africa', label: 'South Africa', icon: <IconCar className="w-4 h-4" /> },
+    { key: 'international', label: 'Outside South Africa', icon: <IconGlobe className="w-4 h-4" /> },
+    { key: 'modify-cancel', label: 'Modify or Cancel Booking', icon: <IconSearch className="w-4 h-4" /> },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Tab Navigation */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-3 py-4">
-            <button
-              onClick={() => setActiveTab('south-africa')}
-              className={`px-6 py-2 rounded-lg font-medium transition-all ${
-                activeTab === 'south-africa'
-                  ? 'bg-teal-600 text-white shadow-md'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              ✓ South Africa
-            </button>
-            <button
-              onClick={() => setActiveTab('modify-cancel')}
-              className={`px-6 py-2 rounded-lg font-medium transition-all ${
-                activeTab === 'modify-cancel'
-                  ? 'bg-teal-600 text-white shadow-md'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              Modify or Cancel Booking
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'south-africa' && <BookingSouthAfrica />}
-        {activeTab === 'modify-cancel' && <ModifyOrCancelBooking />}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <BookingCard
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={(k) => setActiveTab(k as Tab)}
+        >
+          {activeTab === 'south-africa' && <BookingSouthAfrica />}
+          {activeTab === 'international' && <InternationalNotice />}
+          {activeTab === 'modify-cancel' && <ModifyOrCancelBooking />}
+        </BookingCard>
       </div>
 
       {/* Footer Attribution */}
