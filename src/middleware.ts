@@ -35,6 +35,25 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // ==========================================================================
+  // DEV-ONLY PREVIEW BYPASS
+  // Real login isn't wired up yet (auth/login is a placeholder), so there's
+  // currently no way to reach an authenticated agent/admin session at all.
+  // This lets ?preview=agent or ?preview=admin skip the auth/role gate below
+  // — but ONLY when NODE_ENV is "development" (i.e. `next dev`). Vercel
+  // production builds always run with NODE_ENV=production, so this branch
+  // is dead code there regardless of the query string. Remove once real
+  // login + role assignment exists.
+  // ==========================================================================
+  const devPreviewRole = request.nextUrl.searchParams.get("preview");
+  if (
+    process.env.NODE_ENV === "development" &&
+    (devPreviewRole === "agent" || devPreviewRole === "admin")
+  ) {
+    response.headers.set("x-user-role", devPreviewRole);
+    return response;
+  }
+
   // Protected routes requiring authentication
   const protectedRoutes = ["/dashboard", "/profile", "/bookings"];
   const agentRoutes = pathname.startsWith("/agent");
