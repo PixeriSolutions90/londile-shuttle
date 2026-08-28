@@ -166,7 +166,7 @@ export default function SignupPage() {
           </button>
 
           <p className="text-xs text-gray-500 text-center">
-            New accounts start with standard access. To become an agent, request agent access after signing in.
+            This account is for booking your own shuttle trips. Agent accounts are set up by invitation only.
           </p>
         </form>
 
