@@ -1,9 +1,26 @@
 import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+/**
+ * Lazy singleton — constructed on first actual use, never at module load.
+ * Next.js attempts to statically prerender pages during `next build`
+ * (including 'use client' pages without a `dynamic = 'force-dynamic'`
+ * export), which runs this module's top-level code in a build-time Node
+ * context. A module-scope `createBrowserClient(...)` call executes there
+ * too, which broke the Vercel build. Mirrors the lazy pattern already used
+ * in `rate-limit.ts`'s `getRedis()`.
+ */
+let client: SupabaseClient | null = null;
+
+export function getSupabaseBrowserClient(): SupabaseClient {
+  if (!client) {
+    client = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return client;
+}
 
 export type UserRole = "admin" | "agent" | "user";
 
@@ -12,6 +29,7 @@ export type UserRole = "admin" | "agent" | "user";
  * Throws with a user-facing message on failure.
  */
 export async function signInWithEmail(email: string, password: string) {
+  const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
@@ -36,6 +54,7 @@ export async function signUpWithEmail(
   firstName: string,
   surname: string
 ) {
+  const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
@@ -62,6 +81,7 @@ export async function signUpWithEmail(
  * Sign out the current user.
  */
 export async function signOutUser() {
+  const supabase = getSupabaseBrowserClient();
   const { error } = await supabase.auth.signOut();
   if (error) {
     throw new Error(error.message);
@@ -73,6 +93,7 @@ export async function signOutUser() {
  * Returns null if not authenticated
  */
 export async function getUserRole(): Promise<UserRole | null> {
+  const supabase = getSupabaseBrowserClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -136,6 +157,7 @@ export async function requestAgentRole(
  * Get pending agent role requests (admin only)
  */
 export async function getPendingAgentRequests() {
+  const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("role_requests")
     .select("*")

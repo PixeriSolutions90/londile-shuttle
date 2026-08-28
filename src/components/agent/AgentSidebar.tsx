@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { IconInbox, IconCheck, IconPlus, IconLogOut, IconCar } from '@/components/icons';
-import { supabase, signOutUser } from '@/lib/auth';
+import { getSupabaseBrowserClient, signOutUser } from '@/lib/auth';
 
 const NAV_ITEMS = [
   { href: '/agent', label: 'Pending Orders', icon: IconInbox },
@@ -20,6 +20,7 @@ export default function AgentSidebar() {
 
   useEffect(() => {
     async function loadAgent() {
+      const supabase = getSupabaseBrowserClient();
       const { data } = await supabase.auth.getUser();
       if (!data.user) {
         // Dev-preview mode (middleware bypass) has no real session.
