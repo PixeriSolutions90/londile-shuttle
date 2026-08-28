@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const InviteAgentSchema = z.object({
   email: z.string().email("Must be a valid email address"),
-  companyName: z.string().max(200).optional(),
+  companyId: z.string().uuid("A company must be selected"),
 });
 
 /**
@@ -88,7 +88,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation failed", details: errors }, { status: 400 });
     }
 
-    const { email, companyName } = result.data;
+    const { email, companyId } = result.data;
+
+    // Confirm the company actually exists before sending an email nobody
+    // can act on if it doesn't.
+    const { data: company, error: companyError } = await supabaseAdmin
+      .from("companies")
+      .select("id, name")
+      .eq("id", companyId)
+      .eq("is_active", true)
+      .single();
+
+    if (companyError || !company) {
+      return NextResponse.json({ error: "Selected company not found" }, { status: 400 });
+    }
 
     const redirectTo = new URL("/auth/accept-invite", request.nextUrl.origin).toString();
 
@@ -112,7 +125,7 @@ export async function POST(request: NextRequest) {
       .from("profiles")
       .update({
         role: "agent",
-        company_name: companyName || null,
+        company_id: companyId,
         updated_at: new Date().toISOString(),
       })
       .eq("id", newUserId);
@@ -134,11 +147,11 @@ export async function POST(request: NextRequest) {
       user_id: session.user.id,
       action: "agent_invited",
       resource: `user:${newUserId}`,
-      details: { email, company_name: companyName },
+      details: { email, company_id: companyId, company_name: company.name },
     });
 
     return NextResponse.json(
-      { success: true, message: `Invite sent to ${email}`, userId: newUserId },
+      { success: true, message: `Invite sent to ${email} for ${company.name}`, userId: newUserId },
       { status: 201 }
     );
   } catch (error) {

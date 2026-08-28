@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from("profiles")
-      .select("id, role, first_name, surname, contact_number, company_name, created_at")
+      .select("id, role, first_name, surname, contact_number, created_at, companies(id, name)")
       .in("role", ["agent", "admin"])
       .order("created_at", { ascending: false });
 
@@ -89,16 +89,20 @@ export async function GET(request: NextRequest) {
 
     const emailById = new Map(userList.users.map((u) => [u.id, u.email]));
 
-    const agents = (profiles ?? []).map((p) => ({
-      id: p.id,
-      role: p.role,
-      firstName: p.first_name,
-      surname: p.surname,
-      email: emailById.get(p.id) ?? null,
-      contactNumber: p.contact_number,
-      companyName: p.company_name,
-      createdAt: p.created_at,
-    }));
+    const agents = (profiles ?? []).map((p) => {
+      const company = Array.isArray(p.companies) ? p.companies[0] : p.companies;
+      return {
+        id: p.id,
+        role: p.role,
+        firstName: p.first_name,
+        surname: p.surname,
+        email: emailById.get(p.id) ?? null,
+        contactNumber: p.contact_number,
+        companyId: company?.id ?? null,
+        companyName: company?.name ?? null,
+        createdAt: p.created_at,
+      };
+    });
 
     return NextResponse.json(agents, { status: 200 });
   } catch (error) {
