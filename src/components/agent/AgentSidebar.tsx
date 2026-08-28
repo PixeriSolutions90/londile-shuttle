@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { IconInbox, IconCheck, IconPlus, IconLogOut, IconCar } from '@/components/icons';
-import { CURRENT_MOCK_AGENT } from '@/lib/mock/agentBookings';
+import { supabase, signOutUser } from '@/lib/auth';
 
 const NAV_ITEMS = [
   { href: '/agent', label: 'Pending Orders', icon: IconInbox },
@@ -13,6 +14,43 @@ const NAV_ITEMS = [
 
 export default function AgentSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [agentLabel, setAgentLabel] = useState<{ name: string; email: string } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    async function loadAgent() {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        // Dev-preview mode (middleware bypass) has no real session.
+        setAgentLabel({ name: 'Preview Agent', email: 'dev-preview mode' });
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, surname')
+        .eq('id', data.user.id)
+        .single();
+
+      const name = [profile?.first_name, profile?.surname].filter(Boolean).join(' ');
+      setAgentLabel({ name: name || 'Agent', email: data.user.email ?? '' });
+    }
+
+    loadAgent();
+  }, []);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOutUser();
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    } finally {
+      router.push('/auth/login');
+      router.refresh();
+    }
+  };
 
   return (
     <aside className="w-full lg:w-64 shrink-0 bg-white border-r border-gray-100 flex lg:flex-col">
@@ -49,11 +87,15 @@ export default function AgentSidebar() {
 
       {/* Agent info / logout */}
       <div className="hidden lg:block px-4 py-4 border-t border-gray-100">
-        <p className="text-sm font-medium text-gray-800">{CURRENT_MOCK_AGENT.fullName}</p>
-        <p className="text-xs text-gray-400 mb-3 truncate">{CURRENT_MOCK_AGENT.email}</p>
-        <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <p className="text-sm font-medium text-gray-800">{agentLabel?.name ?? '…'}</p>
+        <p className="text-xs text-gray-400 mb-3 truncate">{agentLabel?.email}</p>
+        <button
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+        >
           <IconLogOut className="w-4 h-4" />
-          Sign out
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
     </aside>

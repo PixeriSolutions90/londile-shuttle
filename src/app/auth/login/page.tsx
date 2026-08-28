@@ -1,20 +1,40 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { signInWithEmail, getUserRole } from '@/lib/auth';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    // TODO: Implement Supabase auth login
-    // For now, show success message as placeholder
-    alert('Login functionality coming soon. Contact support for early access.');
-    setLoading(false);
+
+    try {
+      await signInWithEmail(email, password);
+      const role = await getUserRole();
+
+      if (role === 'agent') {
+        router.push('/agent');
+      } else if (role === 'admin') {
+        // Admin dashboard UI isn't built yet — send admins home for now.
+        router.push('/');
+      } else {
+        router.push('/');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,6 +80,12 @@ export default function LoginPage() {
             />
           </div>
 
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+              {error}
+            </div>
+          )}
+
           {/* Submit Button */}
           <button
             type="submit"
@@ -80,7 +106,7 @@ export default function LoginPage() {
 
         {/* Sign Up Link */}
         <p className="text-center text-sm text-gray-600">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/auth/signup" className="font-medium" style={{ color: '#0068da' }}>
             Sign up here
           </Link>

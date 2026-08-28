@@ -1,11 +1,72 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-const supabase = createBrowserClient(
+export const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export type UserRole = "admin" | "agent" | "user";
+
+/**
+ * Sign in with email + password.
+ * Throws with a user-facing message on failure.
+ */
+export async function signInWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}
+
+/**
+ * Sign up with email + password. Supabase's on_auth_user_created trigger
+ * auto-creates a `profiles` row with role='user'; first/surname are set
+ * with a follow-up update since auth.users doesn't carry those fields.
+ *
+ * Returns { requiresEmailConfirmation } so the UI can show the right message
+ * — whether confirmation is required depends on the Supabase project's Auth
+ * settings (Confirm email toggle), not on this code.
+ */
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  firstName: string,
+  surname: string
+) {
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ first_name: firstName, surname })
+      .eq("id", data.user.id);
+
+    // Don't fail the whole signup over a display-name update — the account
+    // and profile row already exist at this point.
+    if (profileError) {
+      console.error("Failed to set profile name after signup:", profileError);
+    }
+  }
+
+  return { requiresEmailConfirmation: !data.session };
+}
+
+/**
+ * Sign out the current user.
+ */
+export async function signOutUser() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    throw new Error(error.message);
+  }
+}
 
 /**
  * Get current user's role
