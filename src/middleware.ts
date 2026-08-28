@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
       adminRoutes) &&
     !session
   ) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/auth/login", request.url));
   }
 
   // If user is authenticated, get their role
