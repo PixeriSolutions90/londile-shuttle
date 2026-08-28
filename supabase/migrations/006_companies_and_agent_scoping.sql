@@ -6,6 +6,10 @@
 -- instead of agents being flat individuals who (per the pre-existing policy
 -- this migration replaces) could read EVERY booking on the platform
 -- regardless of who created it.
+--
+-- Every statement below is safe to re-run: tables/columns/indexes use
+-- IF NOT EXISTS, and every policy/trigger is dropped-if-exists before being
+-- recreated. This script does not need a clean slate to apply successfully.
 -- ============================================================================
 
 -- ============================================================================
@@ -28,22 +32,12 @@ CREATE TABLE IF NOT EXISTS public.companies (
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS companies_is_active_idx ON companies(is_active);
 
--- RLS: Admins manage all companies
-CREATE POLICY "Admins can manage companies" ON companies
-  FOR ALL USING (public.get_user_role() = 'admin');
-
--- RLS: Agents can read their own company's record (name, VAT, etc.)
-CREATE POLICY "Agents can read own company" ON companies
-  FOR SELECT USING (
-    id = (SELECT company_id FROM profiles WHERE id = auth.uid())
-  );
-
-CREATE TRIGGER update_companies_updated_at
-  BEFORE UPDATE ON companies
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-
 -- ============================================================================
 -- LINK PROFILES TO COMPANIES
+-- Must happen BEFORE any policy references profiles.company_id (Postgres
+-- validates column references at CREATE POLICY time, not just at query
+-- time) — this is why the first version of this migration failed.
+--
 -- Supersedes the free-text company_name/vat_number/company_registration/
 -- company_address fields for agents going forward. Those columns are left
 -- in place (unused by the invite flow now) rather than dropped, since the
@@ -54,6 +48,24 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS profiles_company_id_idx ON profiles(company_id);
+
+-- ============================================================================
+-- COMPANIES RLS (now safe — profiles.company_id exists)
+-- ============================================================================
+DROP POLICY IF EXISTS "Admins can manage companies" ON companies;
+CREATE POLICY "Admins can manage companies" ON companies
+  FOR ALL USING (public.get_user_role() = 'admin');
+
+DROP POLICY IF EXISTS "Agents can read own company" ON companies;
+CREATE POLICY "Agents can read own company" ON companies
+  FOR SELECT USING (
+    id = (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+DROP TRIGGER IF EXISTS update_companies_updated_at ON companies;
+CREATE TRIGGER update_companies_updated_at
+  BEFORE UPDATE ON companies
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================================
 -- LINK BOOKINGS TO COMPANIES
@@ -71,6 +83,9 @@ CREATE INDEX IF NOT EXISTS bookings_company_id_idx ON bookings(company_id);
 DROP POLICY IF EXISTS "Agents can read all bookings" ON bookings;
 DROP POLICY IF EXISTS "Agents can create bookings" ON bookings;
 DROP POLICY IF EXISTS "Agents can update their bookings" ON bookings;
+DROP POLICY IF EXISTS "Agents can read their company's bookings" ON bookings;
+DROP POLICY IF EXISTS "Agents can create bookings for their company" ON bookings;
+DROP POLICY IF EXISTS "Agents can update their company's bookings" ON bookings;
 
 -- Any agent at the same company sees the same shared queue of bookings —
 -- that's the point of grouping them under a company — not just bookings
