@@ -24,8 +24,7 @@ export default function LoginPage() {
       if (role === 'agent') {
         router.push('/agent');
       } else if (role === 'admin') {
-        // Admin dashboard UI isn't built yet — send admins home for now.
-        router.push('/');
+        router.push('/admin');
       } else {
         router.push('/');
       }
