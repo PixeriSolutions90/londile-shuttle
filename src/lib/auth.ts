@@ -40,9 +40,14 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 /**
- * Sign up with email + password. Supabase's on_auth_user_created trigger
- * auto-creates a `profiles` row with role='user'; first/surname are set
- * with a follow-up update since auth.users doesn't carry those fields.
+ * Sign up with email + password. First/surname are passed as signup
+ * metadata (auth.users.raw_user_meta_data), and the on_auth_user_created
+ * trigger reads them straight into the new profiles row — see migration
+ * 008. This does NOT rely on a follow-up client-side .update() call: if
+ * the project requires email confirmation (Supabase's default), there's
+ * no active session yet immediately after signUp(), so a separate update
+ * would be silently blocked by the "users can update own profile" RLS
+ * policy (auth.uid() is null until the user confirms and logs in).
  *
  * Returns { requiresEmailConfirmation } so the UI can show the right message
  * — whether confirmation is required depends on the Supabase project's Auth
@@ -55,23 +60,16 @@ export async function signUpWithEmail(
   surname: string
 ) {
   const supabase = getSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { first_name: firstName, surname },
+    },
+  });
 
   if (error) {
     throw new Error(error.message);
-  }
-
-  if (data.user) {
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ first_name: firstName, surname })
-      .eq("id", data.user.id);
-
-    // Don't fail the whole signup over a display-name update — the account
-    // and profile row already exist at this point.
-    if (profileError) {
-      console.error("Failed to set profile name after signup:", profileError);
-    }
   }
 
   return { requiresEmailConfirmation: !data.session };
