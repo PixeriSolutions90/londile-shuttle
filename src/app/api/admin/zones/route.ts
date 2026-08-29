@@ -41,8 +41,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userRole = request.headers.get("x-user-role");
-  if (userRole !== "admin") {
+  // Authorization: role derived from the verified session + DB, not a
+  // client-supplied header — /api/* isn't covered by middleware's matcher,
+  // so an x-user-role request header is entirely client-controlled.
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+  if (callerProfile?.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -121,8 +129,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userRole = request.headers.get("x-user-role");
-  if (userRole !== "admin") {
+  // Authorization: role derived from the verified session + DB, not a
+  // client-supplied header — /api/* isn't covered by middleware's matcher,
+  // so an x-user-role request header is entirely client-controlled.
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+  if (callerProfile?.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -230,8 +246,16 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userRole = request.headers.get("x-user-role");
-  if (userRole !== "admin") {
+  // Authorization: role derived from the verified session + DB, not a
+  // client-supplied header — /api/* isn't covered by middleware's matcher,
+  // so an x-user-role request header is entirely client-controlled.
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+  if (callerProfile?.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
@@ -324,8 +348,16 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const userRole = request.headers.get("x-user-role");
-  if (userRole !== "admin") {
+  // Authorization: role derived from the verified session + DB, not a
+  // client-supplied header — /api/* isn't covered by middleware's matcher,
+  // so an x-user-role request header is entirely client-controlled.
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .single();
+
+  if (callerProfile?.role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

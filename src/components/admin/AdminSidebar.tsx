@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: '/admin', label: 'Quotes', icon: IconInbox },
   { href: '/admin/invoices', label: 'Invoices', icon: IconEdit },
   { href: '/admin/agents', label: 'Agents', icon: IconUsers },
+  { href: '/admin/fleet', label: 'Fleet & Pricing', icon: IconCar },
 ];
 
 export default function AdminSidebar() {
