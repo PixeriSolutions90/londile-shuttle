@@ -40,6 +40,7 @@ export default function BookingSouthAfrica() {
   const [quotes, setQuotes] = useState<VehicleQuote[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [quoteError, setQuoteError] = useState('');
 
@@ -101,6 +102,7 @@ export default function BookingSouthAfrica() {
 
       const quote: QuoteResponse = await response.json();
       setQuotes(quote.quotes);
+      setZoneId(quote.zone.id);
     } catch {
       setQuoteError('Network error while loading pricing.');
     }
@@ -116,6 +118,7 @@ export default function BookingSouthAfrica() {
         if (stored) {
           const quote: QuoteResponse = JSON.parse(stored);
           setQuotes(quote.quotes);
+          setZoneId(quote.zone.id);
         } else {
           await fetchQuote(1, false);
         }
@@ -154,7 +157,7 @@ export default function BookingSouthAfrica() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReturnTrip, passengers]);
 
-  const buildApiPayload = (data: BookingFormValues) => {
+  const buildApiPayload = (data: BookingFormValues, vehicleId: string, zone: string) => {
     const pickupISO = new Date(`${data.pickupDate}T${data.pickupTime}`).toISOString();
     const returnISO = data.isReturnTrip && data.returnDate && data.returnTime
       ? new Date(`${data.returnDate}T${data.returnTime}`).toISOString()
@@ -166,6 +169,8 @@ export default function BookingSouthAfrica() {
       contactNumber: data.contactNumber,
       email: data.email,
       address: data.address,
+      vehicleId,
+      zoneId: zone,
       tripStartDate: pickupISO,
       tripStartTime: data.pickupTime,
       tripEndDate: pickupISO,
@@ -187,7 +192,7 @@ export default function BookingSouthAfrica() {
   };
 
   const handleConfirmAndPay = async () => {
-    if (!bookingDetails) return;
+    if (!bookingDetails || !selectedQuote || !zoneId) return;
 
     if (!turnstileToken) {
       setSubmitErrors({ turnstile: 'Please complete the bot verification' });
@@ -201,7 +206,10 @@ export default function BookingSouthAfrica() {
       const response = await fetch('/api/bookings/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...buildApiPayload(bookingDetails), turnstileToken }),
+        body: JSON.stringify({
+          ...buildApiPayload(bookingDetails, selectedQuote.vehicleId, zoneId),
+          turnstileToken,
+        }),
       });
 
       const data = await response.json();

@@ -44,6 +44,12 @@ const BookingFields = z.object({
     .max(200, "Address must be less than 200 characters")
     .trim(),
 
+  // Vehicle + pricing zone selected via /api/quote. The fare itself is
+  // never accepted from the client — the server re-derives it from these
+  // two IDs against the live pricing_rules table.
+  vehicleId: z.string().uuid("A vehicle must be selected"),
+  zoneId: z.string().uuid("A pricing zone must be selected"),
+
   // Outbound Trip (Operational)
   tripStartDate: z
     .string()
@@ -284,6 +290,34 @@ export const QuoteRequestSchema = z.object({
 });
 
 export type QuoteRequestData = z.infer<typeof QuoteRequestSchema>;
+
+/**
+ * Create Quote Schema
+ * Used by POST /api/quotes — an admin/agent manually building a quote for
+ * a client, distinct from the instant /api/quote fare estimate. quoted_total
+ * is never accepted from the client; the server derives it from vehicleId +
+ * zoneId against pricing_rules, same as booking creation.
+ */
+export const CreateQuoteSchema = z.object({
+  guestFirstName: BookingFields.shape.guestFirstName,
+  guestSurname: BookingFields.shape.guestSurname,
+  contactNumber: BookingFields.shape.contactNumber,
+  email: BookingFields.shape.email,
+
+  vehicleId: z.string().uuid("A vehicle must be selected"),
+  zoneId: z.string().uuid("A pricing zone must be selected"),
+
+  pickupAddress: z.string().max(200).optional(),
+  dropoffAddress: z.string().max(200).optional(),
+  pickupDate: z.string().optional(),
+
+  passengerCount: z.number().int().min(1).max(8).default(1),
+  isReturnTrip: z.boolean().default(false),
+
+  expiresAt: z.string().datetime().optional(),
+});
+
+export type CreateQuoteData = z.infer<typeof CreateQuoteSchema>;
 
 /**
  * Validation helper: Safe parse with error formatting

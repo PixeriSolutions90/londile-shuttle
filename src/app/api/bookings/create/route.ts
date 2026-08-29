@@ -9,6 +9,7 @@ import {
   getClientIp,
 } from "@/lib/rate-limit";
 import { verifyTurnstileToken } from "@/lib/turnstile";
+import { calculateFareForVehicle, resolveAddonFees } from "@/lib/pricing";
 
 /**
  * POST /api/bookings/create
@@ -125,6 +126,34 @@ export async function POST(request: NextRequest) {
     const data = validationResult.data;
 
     // ============================================================================
+    // SERVER-SIDE FARE RECALCULATION (never trust a client-supplied price)
+    // ============================================================================
+    const fare = await calculateFareForVehicle(
+      supabase,
+      data.vehicleId,
+      data.zoneId,
+      data.isReturnTrip,
+      0
+    );
+
+    if (!fare) {
+      return NextResponse.json(
+        {
+          error: "Invalid vehicle or zone",
+          message: "No active pricing exists for the selected vehicle in this area. Please choose a different vehicle.",
+        },
+        { status: 400, headers: rateLimitResult.headers }
+      );
+    }
+
+    const { total: addonsFee, addons: resolvedAddons } = await resolveAddonFees(
+      supabase,
+      data.addonIds ?? []
+    );
+
+    const totalFare = Math.round((fare.totalFare + addonsFee) * 100) / 100;
+
+    // ============================================================================
     // GENERATE BOOKING NUMBER (Sequential: LS-00001, LS-00002, etc.)
     // ============================================================================
     const bookingNumber = await generateBookingNumber(supabase);
@@ -133,6 +162,11 @@ export async function POST(request: NextRequest) {
     // GENERATE VERIFICATION CODE (For guest lookup without auth)
     // ============================================================================
     const verificationCode = nanoid(8); // e.g., "abc12xyz"
+
+    // Single point-to-point trip: pickup and dropoff share the same
+    // date/time (there's no separate dropoff-time UI field today).
+    const pickupDate = data.tripStartDate.toISOString().split("T")[0];
+    const returnDate = data.returnDate ? data.returnDate.toISOString().split("T")[0] : null;
 
     // ============================================================================
     // INSERT BOOKING INTO DATABASE
@@ -144,10 +178,26 @@ export async function POST(request: NextRequest) {
         guest_name: data.guestFirstName,
         guest_surname: data.guestSurname,
         guest_contact: data.contactNumber,
+        guest_email: data.email ?? null,
         guest_address: data.address,
         status: "pending",
-        trip_start_date: data.tripStartDate.toISOString().split("T")[0], // YYYY-MM-DD
-        trip_end_date: data.tripEndDate.toISOString().split("T")[0], // YYYY-MM-DD
+        payment_status: "pending",
+        source: "public",
+        vehicle_id: data.vehicleId,
+        zone_id: data.zoneId,
+        pickup_date: pickupDate,
+        pickup_time: data.tripStartTime,
+        dropoff_date: pickupDate,
+        dropoff_time: data.tripStartTime,
+        is_return_trip: data.isReturnTrip,
+        return_date: returnDate,
+        return_time: data.isReturnTrip ? data.returnTime : null,
+        passenger_count: data.passengerCount,
+        special_requests: data.specialRequests ?? null,
+        base_fare: fare.totalFare,
+        addons_fee: addonsFee,
+        total_fare: totalFare,
+        consent_given_at: new Date().toISOString(),
         verification_code: verificationCode,
         created_at: new Date().toISOString(),
       })
@@ -166,6 +216,25 @@ export async function POST(request: NextRequest) {
           headers: rateLimitResult.headers,
         }
       );
+    }
+
+    // ============================================================================
+    // SNAPSHOT SELECTED ADD-ONS (price locked at booking time)
+    // ============================================================================
+    if (resolvedAddons.length > 0) {
+      const { error: addonsError } = await supabase.from("booking_addons").insert(
+        resolvedAddons.map((addon) => ({
+          booking_id: booking.id,
+          addon_id: addon.id,
+          fee_at_booking: addon.fee,
+        }))
+      );
+
+      if (addonsError) {
+        console.error("Failed to save booking add-ons:", addonsError);
+        // Don't fail the whole booking over add-on snapshot rows — the
+        // addons_fee total is already locked into the booking itself.
+      }
     }
 
     // ============================================================================

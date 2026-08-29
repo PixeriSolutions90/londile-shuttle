@@ -1,102 +1,12 @@
 /**
- * Mock quotes/invoices for the Admin Dashboard UI pass.
+ * Mock invoices for the Admin Dashboard UI pass.
  *
- * The `quotes` and `invoices` tables from the build brief don't exist in
- * the database yet (schema reconciliation is still pending), so this
- * mirrors the field names from the brief as a stand-in — same approach
- * used for the Agent Dashboard's mock bookings.
+ * The `invoices` table now exists for real (see migration 007), but there's
+ * still no invoice-GENERATION flow (no PDF generation, nothing writes rows
+ * to it yet), so the Admin Invoices page stays on this mock data until that
+ * feature is built. Quotes moved off mock data in the same migration pass —
+ * see /api/quotes and src/app/admin/page.tsx.
  */
-
-export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'expired';
-
-export interface MockQuote {
-  id: string;
-  quoteNumber: string;
-  clientName: string;
-  vehicleName: string;
-  pickupAddress: string;
-  dropoffAddress: string;
-  pickupDate: string;
-  passengerCount: number;
-  isReturnTrip: boolean;
-  quotedTotal: number;
-  currency: 'ZAR';
-  status: QuoteStatus;
-  createdByAgentName: string | null;
-  convertedBookingId: string | null;
-  expiresAt: string;
-}
-
-export const MOCK_QUOTES: MockQuote[] = [
-  {
-    id: 'q1',
-    quoteNumber: 'QT-1042',
-    clientName: 'Corporate Events SA',
-    vehicleName: 'Minibus',
-    pickupAddress: 'Century City Conference Centre',
-    dropoffAddress: 'Cape Town International Airport',
-    pickupDate: '2026-09-05',
-    passengerCount: 8,
-    isReturnTrip: false,
-    quotedTotal: 1500,
-    currency: 'ZAR',
-    status: 'sent',
-    createdByAgentName: 'Priya Naidoo',
-    convertedBookingId: null,
-    expiresAt: '2026-09-01',
-  },
-  {
-    id: 'q2',
-    quoteNumber: 'QT-1041',
-    clientName: 'Lindiwe Dlamini',
-    vehicleName: 'Premium Sedan',
-    pickupAddress: 'One&Only Cape Town',
-    dropoffAddress: 'Stellenbosch Wine Estate',
-    pickupDate: '2026-08-30',
-    passengerCount: 2,
-    isReturnTrip: true,
-    quotedTotal: 1725,
-    currency: 'ZAR',
-    status: 'accepted',
-    createdByAgentName: 'Priya Naidoo',
-    convertedBookingId: 'LS-00043',
-    expiresAt: '2026-08-28',
-  },
-  {
-    id: 'q3',
-    quoteNumber: 'QT-1039',
-    clientName: 'Ben Carstens',
-    vehicleName: 'Comfort Sedan',
-    pickupAddress: 'Camps Bay',
-    dropoffAddress: 'Cape Town International Airport',
-    pickupDate: '2026-08-20',
-    passengerCount: 1,
-    isReturnTrip: false,
-    quotedTotal: 730,
-    currency: 'ZAR',
-    status: 'expired',
-    createdByAgentName: null,
-    convertedBookingId: null,
-    expiresAt: '2026-08-19',
-  },
-  {
-    id: 'q4',
-    quoteNumber: 'QT-1044',
-    clientName: 'Grace Okafor',
-    vehicleName: 'Family Minivan',
-    pickupAddress: 'Constantia',
-    dropoffAddress: 'V&A Waterfront',
-    pickupDate: '2026-09-10',
-    passengerCount: 5,
-    isReturnTrip: false,
-    quotedTotal: 1200,
-    currency: 'ZAR',
-    status: 'draft',
-    createdByAgentName: null,
-    convertedBookingId: null,
-    expiresAt: '2026-09-08',
-  },
-];
 
 export interface MockInvoice {
   id: string;
