@@ -31,8 +31,11 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: https:",
               // Fonts: allow self, Google Fonts, and Google Maps
               "font-src 'self' data: https://fonts.gstatic.com https://maps.gstatic.com",
-              // Connect: allow API calls, Cloudflare, and Google Maps Places Autocomplete
-              "connect-src 'self' https://upstash.io https://challenges.cloudflare.com https://vercel.live https://maps.googleapis.com",
+              // Connect: allow API calls, Cloudflare, Google Maps Places Autocomplete,
+              // and Supabase (auth/REST calls go directly from the browser, not
+              // through our own API routes, so this was missing entirely before —
+              // every client-side signIn/signUp/session call was being CSP-blocked).
+              `connect-src 'self' https://upstash.io https://challenges.cloudflare.com https://vercel.live https://maps.googleapis.com ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co"}`,
               // Frames: allow Cloudflare Turnstile
               "frame-src 'self' https://challenges.cloudflare.com",
               // Media: allow self
